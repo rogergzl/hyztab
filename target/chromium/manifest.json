@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "花与竹标签",
+  "short_name": "花与竹",
+  "version": "2.6.0",
+  "description": "一个漂亮、可自定义的新标签页，拥有多种背景和组件。",
+  "homepage_url": "https://aphqsia.com/",
+  "chrome_url_overrides": {
+    "newtab": "index.html"
+  },
+  "permissions": [
+    "storage",
+    "favicon",
+    "bookmarks"
+  ],
+  "optional_host_permissions": [
+    "<all_urls>"
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmyjWIPLtgqT9GOxhYm780juTS5yJm4R1cRMKLXsGKmmQmMidBD0nWN1xMU/N10d0mcHM9pt8KzVXYpDDxDJgVpHu6CECTfgaUYZq3hxL7UQN6aoOctHVftzF2jceagu3f3UVA7ib6lJxaxTka0K4qUG7ovFpPQTYKb1xeqFGvWtJwY5M17q3v2otU+LHMlVfjgNRKr0Z+4jDJl5khcBvEjEBh4pvz+JVF6DhUkw6UyieqPgtLR7GPbqNikrwlgjSdssj6vCLOqLyGb3qVGjCCPdHbS3JFxc/Ls42AOt9gnBt7cmF6F/Afkh/2f9T1ruO5pYF7Q8UsASG3AhSPz6JUQIDAQAB"
+}

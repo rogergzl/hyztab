@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 48" fill="#3498db">
+  <!-- 花竹一体：竹竿为茎，顶端开花 -->
+  <g transform="translate(18, 24)">
+    <!-- 竹竿（花茎） -->
+    <rect x="-1.5" y="2" width="3" height="30" rx="1.5" />
+    <!-- 竹节 -->
+    <path d="M-3 10 H1" stroke="#3498db" stroke-width="1.5" />
+    <path d="M-3 22 H1" stroke="#3498db" stroke-width="1.5" />
+    <!-- 竹叶 -->
+    <path d="M1.5 10 Q12 5 16 10 Q10 8 1.5 14Z" />
+    <path d="M1.5 22 Q-8 17 -12 22 Q-6 20 1.5 26Z" />
+    <!-- 花瓣 -->
+    <ellipse cx="0" cy="-8" rx="4" ry="7" />
+    <ellipse cx="0" cy="-8" rx="4" ry="7" transform="rotate(72)" />
+    <ellipse cx="0" cy="-8" rx="4" ry="7" transform="rotate(144)" />
+    <ellipse cx="0" cy="-8" rx="4" ry="7" transform="rotate(216)" />
+    <ellipse cx="0" cy="-8" rx="4" ry="7" transform="rotate(288)" />
+    <!-- 花蕊 -->
+    <circle cx="0" cy="0" r="2.5" fill="#fff" />
+  </g>
+  <!-- 文字 -->
+  <text x="50" y="32" font-family="'Microsoft YaHei', 'PingFang SC', sans-serif" font-size="28" font-weight="bold" fill="#3498db">花与竹标签</text>
+</svg>

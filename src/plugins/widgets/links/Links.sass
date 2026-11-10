@@ -1,0 +1,701 @@
+// ---------------------------------------------------------------- dashboard
+
+// Sized in em so the whole grid scales with the widget font size setting.
+// The frame is a fixed box; squares are sized to fit inside it on both axes
+// (see `gridMetrics`), so extra rows or columns shrink the cells rather than
+// growing or overflowing the widget. Sizes are set from the component, the
+// fallbacks here only cover the first paint.
+$frame-width: 52.5em
+$frame-height: 20.9em
+$cell-gap: 0.3em
+
+.Links
+    align-items: center
+    display: inline-flex
+    flex-direction: column
+    gap: 0.4em
+    // The grid is anchored to the bottom of the page; this lifts it clear of
+    // the edge so the space above and below the frame end up about equal.
+    margin-bottom: 2rem
+
+    a
+        text-decoration: none
+
+        &:hover
+            text-decoration: none
+
+// Clips the rail, so only the current page is visible.
+.LinksViewport
+    cursor: grab
+    height: var(--link-frame-height, $frame-height)
+    max-width: 88vw
+    overflow: hidden
+    position: relative
+    width: var(--link-frame-width, $frame-width)
+
+// One page per sheet, side by side. Dragging adds a pixel offset on top of the
+// settled page position, so React stays the owner of where the rail rests.
+.LinkTrack
+    display: flex
+    height: 100%
+    transform: translateX(calc(var(--link-page, 0) * -100% + var(--link-drag, 0) * 1px))
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1)
+    will-change: transform
+
+    &.is-dragging
+        cursor: grabbing
+        transition: none
+
+// A page lays out square cells, centred in the frame, which stays a fixed size.
+.LinkPage
+    align-content: center
+    display: grid
+    flex: 0 0 100%
+    gap: $cell-gap
+    grid-template-columns: repeat(var(--link-columns, 6), var(--link-cell, 5em))
+    grid-template-rows: repeat(var(--link-rows, 4), var(--link-cell, 5em))
+    height: 100%
+    justify-content: center
+
+// Page switcher, shown only once there is more than one page.
+.LinkPager
+    align-items: center
+    display: flex
+    gap: 0.45em
+    justify-content: center
+
+.LinkPagerArrow
+    background: transparent
+    border: 0
+    border-radius: 50%
+    color: inherit
+    cursor: pointer
+    font-size: 1em
+    height: 1.7em
+    line-height: 1
+    opacity: 0.55
+    padding: 0
+    transition: background-color 0.15s ease-out, opacity 0.15s ease-out
+    width: 1.7em
+
+    &:hover:not(:disabled)
+        background: rgba(127, 127, 127, 0.3)
+        opacity: 1
+
+    &:disabled
+        cursor: default
+        opacity: 0.18
+
+.LinkPagerDots
+    align-items: center
+    display: flex
+    gap: 0.4em
+
+.LinkPagerDot
+    background: currentColor
+    border: 0
+    border-radius: 50%
+    cursor: pointer
+    height: 0.45em
+    opacity: 0.35
+    padding: 0
+    transition: opacity 0.15s ease-out, transform 0.15s ease-out
+    width: 0.45em
+
+    &:hover
+        opacity: 0.7
+
+    &.is-active
+        opacity: 1
+        transform: scale(1.3)
+
+.LinkPagerCount
+    font-size: 0.8em
+    opacity: 0.7
+
+// Small explanatory line under an editor field.
+.FieldHint
+    display: block
+    font-size: 0.8em
+    line-height: 1.4
+    margin-top: 0.3em
+    opacity: 0.6
+
+// Manual bookmark sync: faded and slowly turning, so it reads as a background
+// detail rather than a primary control. Hovering says whether anything waits.
+.LinkSync
+    align-items: center
+    background: transparent
+    border: 0
+    border-radius: 50%
+    color: inherit
+    cursor: pointer
+    display: inline-flex
+    height: 1.6em
+    justify-content: center
+    line-height: 1
+    margin-left: 0.15em
+    opacity: 0.45
+    padding: 0
+    position: relative
+    transition: opacity 0.15s ease-out
+    width: 1.6em
+
+    i
+        align-items: center
+        display: flex
+        font-size: 0.9em
+        line-height: 0
+
+    svg
+        animation: LinkSyncSpin 12s linear infinite
+        height: 1em
+        width: 1em
+
+    &:hover
+        opacity: 1
+
+        svg
+            animation-duration: 3s
+
+    &.is-busy svg
+        animation-duration: 1s
+
+    &.is-pending
+        opacity: 0.8
+
+    &:disabled
+        cursor: not-allowed
+        opacity: 0.25
+
+        svg
+            animation: none
+
+@keyframes LinkTargetFloat
+    0%,
+    100%
+        transform: translateY(-0.08em) scale(1.04)
+    50%
+        transform: translateY(-0.18em) scale(1.09)
+
+@keyframes LinkSyncSpin
+    from
+        transform: rotate(0deg)
+    to
+        transform: rotate(360deg)
+
+// How many bookmarks are waiting for the manual sync.
+.LinkSyncCount
+    background: #d9534f
+    border-radius: 0.6em
+    color: white
+    font-size: 0.55em
+    line-height: 1
+    padding: 0.15em 0.3em
+    position: absolute
+    right: -0.25em
+    top: -0.25em
+
+// Grows the widget by another page, which is how paging becomes reachable.
+.LinkPagerAdd
+    background: transparent
+    border: 0
+    border-radius: 50%
+    color: inherit
+    cursor: pointer
+    font-size: 0.9em
+    height: 1.6em
+    line-height: 1
+    margin-left: 0.2em
+    opacity: 0.5
+    padding: 0
+    transition: background-color 0.15s ease-out, opacity 0.15s ease-out
+    width: 1.6em
+
+    &:hover
+        background: rgba(127, 127, 127, 0.3)
+        opacity: 1
+
+// A single link: a square tile whose contents are centred with a margin all
+// round. The font size comes from the cell, so the icon and label scale with
+// the tile and always fit inside it.
+.Link
+    align-items: center
+    appearance: none
+    background: transparent
+    border: 0
+    border-radius: 0.6em
+    color: inherit
+    cursor: pointer
+    display: flex
+    flex-direction: column
+    font-family: inherit
+    font-size: var(--link-content, 1em)
+    font-weight: inherit
+    justify-content: center
+    margin: 0
+    padding: 0
+    position: relative
+    // A long press picks the tile up, so the browser must not claim the
+    // gesture for panning, nor select the label while it travels.
+    touch-action: none
+    user-select: none
+    transition: background-color 0.15s ease-out
+
+    &:hover
+        background-color: rgba(127, 127, 127, 0.18)
+
+    // Lifted by a long press and following the pointer. Position comes from a
+    // CSS variable the drag writes directly, so no re-render happens while it
+    // moves; the transition is dropped so it tracks the pointer exactly.
+    &.is-dragging
+        background-color: rgba(127, 127, 127, 0.22)
+        box-shadow: 0 0.6em 1.4em rgba(0, 0, 0, 0.45)
+        cursor: grabbing
+        // Lets the cell underneath be found by a hit test while the tile
+        // travels over it; the gesture itself runs on pointer capture.
+        pointer-events: none
+        opacity: 0.92
+        outline: 2px solid rgba(255, 255, 255, 0.8)
+        transform: translate(var(--drag-x, 0), var(--drag-y, 0)) scale(1.06)
+        transition: none
+        z-index: 20
+
+        .LinkPopup
+            display: none
+
+    // The cell the tile would land in: lifted a little and breathing, so the
+    // landing spot is obvious without hiding the grid behind it.
+    &.is-dropTarget
+        animation: LinkTargetFloat 1.5s ease-in-out infinite
+        background-color: rgba(127, 127, 127, 0.3)
+        opacity: 0.75
+        outline: 2px dashed rgba(255, 255, 255, 0.8)
+        outline-offset: -3px
+        transition: opacity 0.16s ease-out
+        z-index: 5
+
+    // An empty slot: no address yet, waiting to be configured.
+    &.Link--empty
+        background: rgba(127, 127, 127, 0.06)
+        outline: 1px dashed rgba(127, 127, 127, 0.28)
+        outline-offset: -3px
+
+        &:hover
+            background-color: rgba(127, 127, 127, 0.2)
+            outline-color: rgba(127, 127, 127, 0.55)
+
+    &:focus-visible
+        outline: 2px solid currentColor
+        outline-offset: 2px
+
+.LinkBody
+    align-items: center
+    display: flex
+    flex-direction: column
+    gap: 0.2em
+    min-width: 0
+    width: 100%
+
+.LinkIcon
+    align-items: center
+    display: flex
+    height: 2.5em
+    justify-content: center
+    width: 2.5em
+
+    i
+        align-items: center
+        display: flex
+        justify-content: center
+        line-height: 0
+
+    img
+        height: 100%
+        object-fit: contain
+        width: 100%
+
+.LinkName
+    display: block
+    font-size: 1.3em
+    line-height: 1.2
+    max-width: 100%
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+// Quieten the label on a slot that has not been filled in yet.
+.Link--empty .LinkName
+    opacity: 0.5
+
+// Empty slot marker, centred where the icon will go.
+.LinkAdd
+    display: block
+    font-size: 2.6em
+    line-height: 1
+    opacity: 0.35
+
+// Hover popup carrying the full original name.
+//
+// It is drawn inside the frame the pages slide within, so it is turned to face
+// inwards: a tile on the top row drops it below, and a tile against a side edge
+// lines it up with that edge instead of centring and being clipped.
+.LinkPopup
+    --popup-shift-x: -50%
+    --popup-shift-y: 0.25em
+    background: rgba(28, 30, 33, 0.95)
+    border-radius: 0.4em
+    bottom: calc(100% + 0.35em)
+    color: white
+    display: flex
+    flex-direction: column
+    gap: 0.25em
+    left: 50%
+    // An absolute box with an auto width shrink-wraps to what `left: 50%`
+    // leaves inside the icon's square: barely one character. With
+    // `overflow-wrap: anywhere` that laid the name out as a vertical strip of
+    // single characters. Give the popup an intrinsic width of its own so the
+    // text stays horizontal and wraps at the cap, independent of the icon box.
+    max-width: 14em
+    min-width: 9em
+    opacity: 0
+    overflow-wrap: anywhere
+    padding: 0.6em 0.8em
+    pointer-events: none
+    position: absolute
+    text-align: left
+    transform: translate(var(--popup-shift-x), var(--popup-shift-y))
+    transition: opacity 0.15s ease-out, transform 0.15s ease-out
+    visibility: hidden
+    white-space: normal
+    width: max-content
+    z-index: 10
+
+    &.is-below
+        --popup-shift-y: -0.25em
+        bottom: auto
+        top: calc(100% + 0.35em)
+
+    &.is-start
+        --popup-shift-x: 0
+        left: 0
+
+    &.is-end
+        --popup-shift-x: 0
+        left: auto
+        right: 0
+
+.Link:hover > .LinkPopup,
+.Link:focus-visible > .LinkPopup
+    opacity: 1
+    transform: translate(var(--popup-shift-x), 0)
+    visibility: visible
+
+// Sized from the cell like the rest of the tile, which keeps the popup in
+// proportion however small the grid is set.
+.LinkPopupName
+    font-size: 1.3em
+    font-weight: 600
+    // A long name wraps rather than stretching past the frame.
+    overflow-wrap: anywhere
+
+.LinkPopupUrl
+    font-size: 1.15em
+    opacity: 0.7
+    overflow-wrap: anywhere
+
+.LinkPopupHint
+    font-size: 1.05em
+    opacity: 0.55
+
+// ----------------------------------------------------------------- settings
+
+.LinksSettings
+    .info
+        font-size: 0.85em
+        opacity: 0.75
+
+    strong
+        font-weight: 600
+
+// ------------------------------------------------------------------ editor
+
+.LinkEditorOverlay
+    align-items: center
+    background: rgba(16, 18, 20, 0.45)
+    display: flex
+    inset: 0
+    justify-content: center
+    padding: 1.5rem
+    position: fixed
+    z-index: 100
+
+// Wide, horizontal panel: the two column body keeps it wider than it is tall.
+.LinkEditor
+    background: white
+    border-radius: 1rem
+    box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.35)
+    color: #212121
+    display: flex
+    flex-direction: column
+    max-height: 92vh
+    max-width: 46rem
+    overflow: hidden
+    width: 100%
+
+.LinkEditorHeader
+    align-items: center
+    border-bottom: 1px solid #eef1f3
+    display: flex
+    flex: 0 0 auto
+    justify-content: space-between
+    padding: 1rem 1.25rem
+
+    h3
+        color: #212121
+        font-size: 1.05rem
+        font-weight: 600
+        margin: 0
+
+.LinkEditorClose
+    background: transparent
+    border: 0
+    border-radius: 50%
+    color: #7f8c8d
+    cursor: pointer
+    font-size: 1.4rem
+    height: 2rem
+    line-height: 1
+    width: 2rem
+
+    &:hover
+        background: #f1f3f5
+        color: #212121
+
+.LinkEditorBody
+    display: flex
+    flex: 1 1 auto
+    gap: 0
+    min-height: 0
+    overflow-y: auto
+
+    @media (max-width: 34rem)
+        flex-direction: column
+
+// Live preview column
+.LinkEditorPreview
+    align-items: center
+    background: #f7f9fa
+    border-right: 1px solid #eef1f3
+    display: flex
+    flex: 0 0 13rem
+    flex-direction: column
+    gap: 0.5rem
+    justify-content: center
+    padding: 1.5rem 1rem
+
+    @media (max-width: 34rem)
+        border-bottom: 1px solid #eef1f3
+        border-right: 0
+        flex: 0 0 auto
+
+.LinkEditorPreviewIcon
+    align-items: center
+    background: white
+    border: 1px solid #e6eaec
+    border-radius: 0.9rem
+    display: flex
+    height: 4.5rem
+    justify-content: center
+    width: 4.5rem
+
+    i
+        align-items: center
+        display: flex
+        height: 2.5rem
+        justify-content: center
+        width: 2.5rem
+
+    img
+        height: 100%
+        object-fit: contain
+        width: 100%
+
+.LinkEditorPreviewName
+    color: #212121
+    font-size: 0.95rem
+    font-weight: 600
+    max-width: 11rem
+    overflow: hidden
+    text-align: center
+    text-overflow: ellipsis
+    white-space: nowrap
+
+.LinkEditorPreviewHint
+    color: #95a5a6
+    font-size: 0.75rem
+
+// Form column
+.LinkEditorFields
+    display: flex
+    flex: 1 1 auto
+    flex-direction: column
+    gap: 0.75rem
+    min-width: 0
+    padding: 1.25rem
+
+// Each row stays on a single line: fixed label, flexible input.
+.Field
+    align-items: center
+    display: flex
+    gap: 0.75rem
+    margin: 0
+
+    input
+        background: white
+        border: 1px solid #dfe4e6
+        border-radius: 0.5rem
+        color: inherit
+        flex: 1 1 auto
+        font: inherit
+        min-width: 0
+        padding: 0.55rem 0.75rem
+        transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out
+        width: 100%
+
+        &:focus
+            border-color: #3498db
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.18)
+            outline: none
+
+        &::placeholder
+            color: #bdc3c7
+
+.Field--stacked
+    align-items: flex-start
+    flex-direction: column
+
+.FieldLabel
+    color: #576574
+    flex: 0 0 4.5rem
+    font-size: 0.85rem
+    font-weight: 500
+    white-space: nowrap
+
+// Icon source: pick one of two.
+.IconChoice
+    display: flex
+    gap: 0.6rem
+    width: 100%
+
+    @media (max-width: 26rem)
+        flex-direction: column
+
+.IconChoiceItem
+    align-items: center
+    background: white
+    border: 1.5px solid #e2e7e9
+    border-radius: 0.7rem
+    color: inherit
+    cursor: pointer
+    display: flex
+    flex: 1 1 0
+    gap: 0.65rem
+    min-width: 0
+    padding: 0.6rem 0.75rem
+    text-align: left
+    transition: border-color 0.15s ease-out, background-color 0.15s ease-out
+
+    &:hover
+        background: #f7f9fa
+        border-color: #cbd5d8
+
+    &.is-active
+        background: rgba(52, 152, 219, 0.07)
+        border-color: #3498db
+
+        strong
+            color: #2471a3
+
+.IconChoiceIcon
+    align-items: center
+    background: #f1f3f5
+    border-radius: 0.45rem
+    display: flex
+    flex: 0 0 auto
+    height: 2.1rem
+    justify-content: center
+    overflow: hidden
+    width: 2.1rem
+
+    img
+        height: 1.35rem
+        object-fit: contain
+        width: 1.35rem
+
+.IconChoiceText
+    display: flex
+    flex-direction: column
+    gap: 0.1rem
+    min-width: 0
+
+    strong
+        color: #212121
+        font-size: 0.85rem
+        font-weight: 600
+
+    small
+        color: #95a5a6
+        font-size: 0.72rem
+        overflow: hidden
+        text-overflow: ellipsis
+        white-space: nowrap
+
+.IconUpload
+    display: block
+    margin: 0.15rem 0 0
+    width: 100%
+
+    input
+        font-size: 0.8rem
+
+.LinkEditorFooter
+    align-items: center
+    border-top: 1px solid #eef1f3
+    display: flex
+    flex: 0 0 auto
+    justify-content: space-between
+    padding: 0.9rem 1.25rem
+
+.LinkEditorStatus
+    color: #95a5a6
+    font-size: 0.8rem
+
+    .is-error
+        color: #e74c3c
+
+.LinkEditorActions
+    align-items: center
+    display: flex
+    gap: 0.5rem
+
+    .button
+        border: 0
+        border-radius: 2em
+        color: white
+        cursor: pointer
+        font-weight: 500
+        padding: 0.5em 1.4em
+        transition: background-color 0.2s ease-out
+
+        &--primary
+            background: #3498db
+
+            &:hover
+                background: #2c87c4
+
+        &--danger
+            background: #e74c3c
+
+            &:hover
+                background: #d44333

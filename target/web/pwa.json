@@ -1,0 +1,15 @@
+{
+  "short_name": "花与竹",
+  "name": "花与竹标签",
+  "icons": [
+    {
+      "src": "icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "./index.html",
+  "display": "standalone",
+  "theme_color": "#3498db",
+  "background_color": "#ffffff"
+}

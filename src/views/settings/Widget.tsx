@@ -1,0 +1,126 @@
+import React from "react";
+import { setWidgetDisplay } from "../../db/action";
+import { WidgetState } from "../../db/state";
+import { useToggle } from "../../hooks";
+import { getConfig } from "../../plugins";
+import { DownIcon, Icon, IconButton, RemoveIcon, UpIcon } from "../shared";
+import PluginContainer from "../shared/Plugin";
+import ToggleSection from "../shared/ToggleSection";
+import "./Widget.sass";
+import WidgetDisplay from "./WidgetDisplay";
+
+interface Props {
+  plugin: WidgetState;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onRemove: () => void;
+}
+
+const Widget: React.FC<Props> = ({
+  plugin,
+  onMoveDown,
+  onMoveUp,
+  onRemove,
+}) => {
+  const [isOpen, toggleIsOpen] = useToggle(onRemove === undefined);
+
+  const { description, name, settingsComponent } = getConfig(plugin.key);
+
+  const setDisplay = setWidgetDisplay.bind(null, plugin.id);
+
+  return (
+    <fieldset className="Widget">
+      <div className="title--buttons">
+        <IconButton onClick={onRemove} title="删除组件">
+          <RemoveIcon />
+        </IconButton>
+
+        <IconButton
+          onClick={toggleIsOpen}
+          title={`${isOpen ? "关闭" : "编辑"}组件设置`}
+        >
+          <Icon name="settings" />
+        </IconButton>
+
+        {onMoveDown && (
+          <IconButton onClick={onMoveDown} title="下移组件">
+            <DownIcon />
+          </IconButton>
+        )}
+
+        {onMoveUp && (
+          <IconButton onClick={onMoveUp} title="上移组件">
+            <UpIcon />
+          </IconButton>
+        )}
+
+        <h4 onClick={toggleIsOpen}>{name}</h4>
+        {!isOpen && <p>{description}</p>}
+      </div>
+
+      {isOpen && (
+        <div>
+          {settingsComponent && (
+            <div className="settings">
+              <PluginContainer id={plugin.id} component={settingsComponent} />
+            </div>
+          )}
+
+          <ToggleSection name="显示设置">
+            <WidgetDisplay display={plugin.display} onChange={setDisplay} />
+          </ToggleSection>
+
+          <ToggleSection name="字体设置">
+            <>
+              <label>
+                字体
+                <input
+                  type="text"
+                  value={plugin.display.fontFamily}
+                  onChange={(event) =>
+                    setDisplay({ fontFamily: event.target.value })
+                  }
+                />
+              </label>
+
+              <label>
+                粗细
+                <select
+                  value={plugin.display.fontWeight}
+                  onChange={(event) =>
+                    setDisplay({
+                      fontWeight: event.target.value
+                        ? Number(event.target.value)
+                        : undefined,
+                    })
+                  }
+                >
+                  <option value="">默认</option>
+                  <option value="100">极细</option>
+                  <option value="300">细</option>
+                  <option value="400">常规</option>
+                  <option value="500">中等</option>
+                  <option value="700">粗</option>
+                  <option value="900">特粗</option>
+                </select>
+              </label>
+
+              <label>
+                颜色
+                <input
+                  type="color"
+                  value={plugin.display.colour ?? "#ffffff"}
+                  onChange={(event) =>
+                    setDisplay({ colour: event.target.value })
+                  }
+                />
+              </label>
+            </>
+          </ToggleSection>
+        </div>
+      )}
+    </fieldset>
+  );
+};
+
+export default Widget;
