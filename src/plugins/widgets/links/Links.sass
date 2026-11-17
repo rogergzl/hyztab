@@ -659,6 +659,26 @@ $cell-gap: 0.3em
     input
         font-size: 0.8rem
 
+// Proxy toggle: the checkbox keeps its label aligned with the other field
+// labels, and the address input below it inherits the standard Field styling.
+.ProxyToggle
+    align-items: center
+    cursor: pointer
+    display: flex
+    gap: 0.5rem
+
+    input
+        accent-color: #3498db
+        cursor: pointer
+        flex: 0 0 auto
+        height: 1rem
+        margin: 0
+        width: 1rem
+
+    .FieldLabel
+        flex: 0 0 auto
+        white-space: normal
+
 .LinkEditorFooter
     align-items: center
     border-top: 1px solid #eef1f3

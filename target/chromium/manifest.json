@@ -11,7 +11,8 @@
   "permissions": [
     "storage",
     "favicon",
-    "bookmarks"
+    "bookmarks",
+    "proxy"
   ],
   "optional_host_permissions": [
     "<all_urls>"

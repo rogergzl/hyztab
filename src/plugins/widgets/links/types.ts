@@ -1,5 +1,6 @@
 import { API } from "../../types";
 import { DEFAULT_GRID } from "../../../db/linksGrid";
+import { LinkProxy } from "../../../lib/linkProxy";
 
 /** Use the favicon fetched from the website itself. */
 export const ICON_FAVICON = "_favicon";
@@ -20,6 +21,8 @@ export type Link = {
   icon?: string;
   /** Key of the uploaded icon inside the cache. Only used with ICON_CUSTOM. */
   customIconId?: string;
+  /** Optional per-host proxy routing, applied browser-wide via a PAC script. */
+  proxy?: LinkProxy;
 };
 
 export type Data = {

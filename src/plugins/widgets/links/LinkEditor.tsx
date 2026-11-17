@@ -4,6 +4,10 @@ import { createPortal } from "react-dom";
 import { db } from "../../../db/state";
 import { useValue } from "../../../lib/db/react";
 import { fetchSiteTitle } from "../../../lib/siteTitle";
+import {
+  isValidProxyAddress,
+  proxySupported,
+} from "../../../lib/linkProxy";
 import LinkIcon from "./LinkIcon";
 import { ICON_CUSTOM, ICON_FAVICON, Link } from "./types";
 import {
@@ -327,6 +331,47 @@ const LinkEditor: FC<Props> = ({
                     onChange={(event) => uploadIcon(event.target.files?.[0])}
                   />
                 </label>
+              )}
+            </div>
+
+            <div className="Field Field--stacked">
+              <label className="ProxyToggle">
+                <input
+                  type="checkbox"
+                  checked={Boolean(draft.proxy)}
+                  onChange={(event) =>
+                    change({
+                      proxy: event.target.checked
+                        ? { address: draft.proxy?.address ?? "" }
+                        : undefined,
+                    })
+                  }
+                />
+                <span className="FieldLabel">代理访问</span>
+              </label>
+
+              {draft.proxy && (
+                <>
+                  <input
+                    type="text"
+                    spellCheck={false}
+                    value={draft.proxy.address}
+                    placeholder="192.168.1.91:7893 或 socks5://127.0.0.1:1080"
+                    onChange={(event) =>
+                      change({
+                        proxy: { address: event.target.value },
+                      })
+                    }
+                  />
+                  <small className="FieldHint">
+                    {draft.proxy.address &&
+                    !isValidProxyAddress(draft.proxy.address)
+                      ? "地址格式不正确，需形如 主机:端口，支持 http / socks5 / socks4。"
+                      : !proxySupported()
+                        ? "当前浏览器不支持扩展设置代理（需 Chrome 或 Edge）。"
+                        : "访问此网址的域名时走该代理，其余网址直连。按域名生效，同域名的一切访问都会走代理。"}
+                  </small>
+                </>
               )}
             </div>
           </div>

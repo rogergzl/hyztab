@@ -1,6 +1,7 @@
 import React from "react";
 import { db } from "../../db/state";
 import { useValue } from "../../lib/db/react";
+import LinkProxyBridge from "../../plugins/widgets/links/LinkProxyBridge";
 import Background from "./Background";
 import "./Dashboard.sass";
 import Overlay from "./Overlay";
@@ -20,6 +21,7 @@ const Dashboard: React.FC = () => {
       <Background />
       <Widgets />
       <Overlay />
+      <LinkProxyBridge />
     </div>
   );
 };
