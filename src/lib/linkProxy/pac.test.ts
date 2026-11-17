@@ -70,4 +70,30 @@ describe("buildPacScript()", () => {
     ]);
     expect(script).toContain('host === "github.com"');
   });
+
+  it("tries the fallback proxy first and still allows a direct connection", () => {
+    const script = buildPacScript(
+      [{ host: "nas.local", server: { kind: "PROXY", host: "10.0.0.2", port: 3128 } }],
+      { kind: "PROXY", host: "127.0.0.1", port: 7890 },
+    );
+
+    expect(script).toContain('return "PROXY 10.0.0.2:3128"');
+    expect(script).toContain('return "PROXY 127.0.0.1:7890; DIRECT"');
+  });
+
+  it("keeps a socks fallback in its own token", () => {
+    const script = buildPacScript([], {
+      kind: "SOCKS5",
+      host: "127.0.0.1",
+      port: 1080,
+    });
+
+    expect(script).toContain('return "SOCKS5 127.0.0.1:1080; DIRECT"');
+  });
+
+  it("goes direct when no fallback is configured", () => {
+    const script = buildPacScript([], null);
+    expect(script).toContain('return "DIRECT";');
+    expect(script).not.toContain("PROXY");
+  });
 });

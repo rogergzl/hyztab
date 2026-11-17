@@ -1,4 +1,11 @@
-import { collectRules, LinkProxy, ProxyRule, ProxySource } from "../lib/linkProxy";
+import {
+  collectRules,
+  LinkProxy,
+  parseProxyAddress,
+  ProxyRule,
+  ProxyServer,
+  ProxySource,
+} from "../lib/linkProxy";
 import { DB } from "../lib";
 import { db, WidgetState } from "./state";
 
@@ -32,6 +39,15 @@ export const selectAllLinks = (): ProxySource[] => {
 
 /** The current proxy rules, derived from authoritative saved state. */
 export const selectProxyRules = (): ProxyRule[] => collectRules(selectAllLinks());
+
+/**
+ * The proxy used for hosts no link names, or null when there is none.
+ *
+ * An invalid or empty address yields null, which the PAC turns into a plain
+ * DIRECT — the same behaviour as before this setting existed.
+ */
+export const selectProxyFallback = (): ProxyServer | null =>
+  parseProxyAddress(DB.get(db, "linkProxyFallback"));
 
 /** Read one link's proxy setting without exposing the whole store to callers. */
 export const proxyOf = (link: ProxySource): LinkProxy | undefined => link.proxy;

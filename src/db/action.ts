@@ -40,6 +40,11 @@ export const setSiteTitle = (enabled: boolean): void => {
   DB.put(db, "siteTitle", enabled);
 };
 
+/** The proxy unnamed hosts are tried through first. Empty means direct. */
+export const setLinkProxyFallback = (address: string): void => {
+  DB.put(db, "linkProxyFallback", address.trim());
+};
+
 // Widget actions
 
 /** Add a new widget, optionally where the plugin asks for it to go. */

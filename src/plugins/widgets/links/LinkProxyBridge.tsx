@@ -1,6 +1,6 @@
 import { FC, useEffect, useRef } from "react";
 
-import { selectProxyRules } from "../../../db/linkProxy";
+import { selectProxyFallback, selectProxyRules } from "../../../db/linkProxy";
 import { DB } from "../../../lib";
 import { db } from "../../../db/state";
 import { applyRules } from "../../../lib/linkProxy";
@@ -29,13 +29,14 @@ const LinkProxyBridge: FC = () => {
         if (!active) return;
 
         const rules = selectProxyRules();
-        const signature = JSON.stringify(rules);
+        const fallback = selectProxyFallback();
+        const signature = JSON.stringify([rules, fallback]);
         // Writing the same PAC again would briefly drop every proxied
         // connection, so only apply when the rules actually changed.
         if (signature === last.current) return;
 
         last.current = signature;
-        applyRules(rules);
+        applyRules(rules, fallback);
       }, DELAY);
     };
 

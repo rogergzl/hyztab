@@ -1,7 +1,11 @@
 import React from "react";
 import { FormattedMessage } from "react-intl";
 
-import { setBookmarkSync, setLinksGrid } from "../../db/action";
+import {
+  setBookmarkSync,
+  setLinkProxyFallback,
+  setLinksGrid,
+} from "../../db/action";
 import {
   COLUMN_OPTIONS,
   LinksGrid as Grid,
@@ -9,6 +13,7 @@ import {
   clampLinksGrid,
   gridCapacity,
 } from "../../db/linksGrid";
+import { isValidProxyAddress, proxySupported } from "../../lib/linkProxy";
 import { db } from "../../db/state";
 import { useValue } from "../../lib/db/react";
 
@@ -22,6 +27,7 @@ const LinksGrid: React.FC = () => {
   const stored = useValue(db, "linksGrid");
   const grid = clampLinksGrid(stored);
   const bookmarkSync = useValue(db, "bookmarkSync");
+  const fallback = useValue(db, "linkProxyFallback") ?? "";
 
   const select = (key: keyof Grid) => (
     event: React.ChangeEvent<HTMLSelectElement>,
@@ -95,6 +101,49 @@ const LinksGrid: React.FC = () => {
             点击后才会删掉已移除链接对应的书签。
             <br />
             需要<strong>「书签」权限</strong>。浏览器不支持书签接口时该功能自动隐藏。
+          </p>
+        </div>
+      </div>
+
+      <div className="Widget">
+        <h4>代理兜底</h4>
+
+        <div className="settings">
+          <label>
+            其余网站走
+            <input
+              type="text"
+              spellCheck={false}
+              value={fallback}
+              placeholder="留空则直连，如 127.0.0.1:7890"
+              onChange={(event) => setLinkProxyFallback(event.target.value)}
+            />
+          </label>
+
+          <p className="info">
+            给某个链接开启<strong>代理访问</strong>后，浏览器会用一份 PAC
+            脚本接管<strong>整个浏览器</strong>的代理设置，未指定域名的网站由这份脚本
+            决定去哪——它没有「沿用系统代理」这个选项。
+            <br />
+            这里填你自己的本地代理（如 Clash 的
+            <code>127.0.0.1:7890</code>），这些网站就会<strong>先走它、连不上再直连</strong>：
+            开着时和以前一样，关掉时也不会报错。留空则一律直连。
+            {fallback.trim() !== "" && !isValidProxyAddress(fallback) && (
+              <>
+                <br />
+                <span className="is-error">
+                  地址格式不正确，需形如 主机:端口，支持 http / socks5 / socks4。
+                </span>
+              </>
+            )}
+            {!proxySupported() && (
+              <>
+                <br />
+                <span className="is-error">
+                  当前浏览器不支持扩展设置代理（需 Chrome 或 Edge）。
+                </span>
+              </>
+            )}
           </p>
         </div>
       </div>

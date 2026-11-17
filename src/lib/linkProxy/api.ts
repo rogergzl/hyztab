@@ -1,5 +1,5 @@
 import { buildPacScript } from "./pac";
-import { ProxyRule } from "./types";
+import { ProxyRule, ProxyServer } from "./types";
 
 /**
  * Wrapper around Chrome/Edge's global proxy setting.
@@ -37,8 +37,15 @@ export const proxySupported = (): boolean => settings() !== null;
  * Install a PAC whose only rules are the given hosts. Passing an empty list
  * clears our setting entirely, handing proxy control back to the system or to
  * whatever other extension owns it — the feature is inert by default.
+ *
+ * `fallback` is the proxy every unnamed host is tried through first. Without
+ * it those hosts go direct, which is the right default for someone with no
+ * system proxy; with it a user keeps their own proxy for everything else.
  */
-export const applyRules = async (rules: ProxyRule[]): Promise<boolean> => {
+export const applyRules = async (
+  rules: ProxyRule[],
+  fallback?: ProxyServer | null,
+): Promise<boolean> => {
   const api = settings();
   if (!api) return false;
 
@@ -51,7 +58,10 @@ export const applyRules = async (rules: ProxyRule[]): Promise<boolean> => {
     await api.set({
       value: {
         mode: "pac_script",
-        pacScript: { data: buildPacScript(rules), mandatory: false },
+        pacScript: {
+          data: buildPacScript(rules, fallback),
+          mandatory: false,
+        },
       },
       scope: "regular",
     });

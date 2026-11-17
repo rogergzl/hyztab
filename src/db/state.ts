@@ -14,6 +14,11 @@ export interface State {
   bookmarkSync: boolean;
   /** Whether a new link may read the site's own name for its full name */
   siteTitle: boolean;
+  /**
+   * Proxy every host that no link names is tried through first. Empty means
+   * go direct. Kept page level because the PAC it feeds is browser wide.
+   */
+  linkProxyFallback: string;
   /** Widget state */
   [key: `widget/${string}`]: WidgetState | null;
   /** Plugin data */
@@ -85,6 +90,11 @@ const initData: State = {
   bookmarkSync: true,
   /** Whether a new link may read the site's own name for its full name. */
   siteTitle: false,
+  /**
+   * Empty by default: unnamed hosts go direct, so the feature never takes over
+   * a network that was not using a proxy anyway.
+   */
+  linkProxyFallback: "",
   // Clock and greeting sit at the top of the page, leaving the lower half to
   // the quick links grid.
   "widget/default-time": {
