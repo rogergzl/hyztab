@@ -41,16 +41,24 @@ export function reducer(state: State, action: Action) {
 
     case "REORDER_LINK": {
       const links = [...state];
+      const from = Math.max(0, Math.floor(action.data.index));
       const to = Math.max(0, Math.floor(action.data.to));
-      const [moved] = links.splice(action.data.index, 1);
-      if (!moved) return state;
+      if (from === to) return state;
+
+      // A slot only exists in the list up to the last link; the cells a page
+      // shows beyond that hold nothing, so picking one up moves nothing.
+      if (from >= links.length) return state;
 
       // A drop can land on a numbered cell past the last link, so pad the gap
-      // rather than letting splice append it to the end: the tile must appear
-      // in the cell it was dropped on.
-      while (links.length < to) links.push(emptyLink());
+      // first: the tile must appear in the cell it was dropped on.
+      while (links.length <= to) links.push(emptyLink());
 
-      links.splice(to, 0, moved);
+      // Swap the two cells instead of moving one and shifting the rest.
+      // Removing and re-inserting pulls every later tile one place forward,
+      // which renumbers the whole grid behind the drag and makes rearranging
+      // harder rather than easier. Swapping leaves every other cell untouched,
+      // and dropping onto an empty cell simply empties the one it came from.
+      [links[from], links[to]] = [links[to], links[from]];
       return links;
     }
 

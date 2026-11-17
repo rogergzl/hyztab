@@ -135,6 +135,40 @@ describe("links/reducer()", () => {
     ]);
   });
 
+  it("should swap two cells and leave the ones between them alone", () => {
+    // Moving a tile must not shift the rest of the grid: swapping is the whole
+    // point of rearranging, and a renumbering grid is what made it awkward.
+    const swapped = reducer(
+      [
+        { url: "https://a.com" },
+        { url: "https://b.com" },
+        { url: "https://c.com" },
+        { url: "https://d.com" },
+        { url: "https://e.com" },
+      ],
+      reorderLink(4, 0),
+    );
+
+    expect(swapped).toEqual([
+      { url: "https://e.com" },
+      { url: "https://b.com" },
+      { url: "https://c.com" },
+      { url: "https://d.com" },
+      { url: "https://a.com" },
+    ]);
+  });
+
+  it("should empty the source cell when a tile is dropped on an empty one", () => {
+    // Dragging the last tile onto a gap earlier in the row: one move, no
+    // stepping through the cells in between.
+    const swapped = reducer(
+      [{ url: "https://a.com" }, {}, { url: "https://c.com" }],
+      reorderLink(2, 1),
+    );
+
+    expect(swapped).toEqual([{ url: "https://a.com" }, { url: "https://c.com" }, {}]);
+  });
+
   it("should pad empty cells when a tile is dropped past the last link", () => {
     // Slots are numbered by the grid, so a drop can land on a numbered cell
     // that has no link yet. The tile must appear there, not be appended.
