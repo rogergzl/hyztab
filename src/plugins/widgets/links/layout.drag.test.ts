@@ -1,94 +1,85 @@
-import {
-  centeredGridBox,
-  nearestSlot,
-  trackSizes,
-} from "./layout";
+import { nearestCell, slotCells, trackSizes } from "./layout";
 
-/** A four column, three row page of 100 by 60 cells at (10, 20). */
-const box = { left: 10, top: 20, width: 400, height: 180 };
+/**
+ * A page of the frame's size holding six centred columns of 84 with an 8 gap:
+ * 6*84 + 5*8 = 544 wide, so 358 is left over on each side of 1260. Two rows of
+ * 84 with an 8 gap are 176 tall, so 164 is left over above and below 504.
+ */
+const page = { left: 0, top: 0, width: 1260, height: 504 };
+const columns = [84, 84, 84, 84, 84, 84];
+const rows = [84, 84];
 
-describe("links/layout nearestSlot()", () => {
-  it("should report the cell a point sits in", () => {
-    // Centre of the first cell.
-    expect(nearestSlot({ x: 60, y: 50 }, box, 4, 3)).toBe(0);
-    // Centre of the last cell of the first row.
-    expect(nearestSlot({ x: 360, y: 50 }, box, 4, 3)).toBe(3);
-    // First cell of the second row.
-    expect(nearestSlot({ x: 60, y: 110 }, box, 4, 3)).toBe(4);
-    // Last cell of the last row.
-    expect(nearestSlot({ x: 360, y: 170 }, box, 4, 3)).toBe(11);
+describe("links/layout slotCells()", () => {
+  it("should number every cell, left to right then row by row", () => {
+    const cells = slotCells(page, columns, rows, 8, 8, 0);
+
+    expect(cells).toHaveLength(12);
+    expect(cells.map((cell) => cell.index)).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+    ]);
+
+    // Centres of the first and last cell.
+    expect(cells[0].x).toBeCloseTo(358 + 42, 3);
+    expect(cells[0].y).toBeCloseTo(164 + 42, 3);
+    expect(cells[11].x).toBeCloseTo(358 + 5 * 92 + 42, 3);
+    expect(cells[11].y).toBeCloseTo(164 + 92 + 42, 3);
   });
 
-  it("should pick the nearest cell, not the one after the boundary", () => {
-    // Just inside the left edge of the second cell.
-    expect(nearestSlot({ x: 111, y: 50 }, box, 4, 3)).toBe(1);
-    // Just inside the right edge of the first cell.
-    expect(nearestSlot({ x: 109, y: 50 }, box, 4, 3)).toBe(0);
+  it("should offset the numbering by where the page starts", () => {
+    // Page two of a 6x2 grid begins at slot 12.
+    const cells = slotCells(page, columns, rows, 8, 8, 12);
+
+    expect(cells[0].index).toBe(12);
+    expect(cells[11].index).toBe(23);
   });
 
-  it("should clamp a point dragged outside the grid", () => {
-    expect(nearestSlot({ x: -500, y: -500 }, box, 4, 3)).toBe(0);
-    expect(nearestSlot({ x: 9999, y: 9999 }, box, 4, 3)).toBe(11);
-    // To the right of the first row: the last column of that row.
-    expect(nearestSlot({ x: 9999, y: 50 }, box, 4, 3)).toBe(3);
-  });
+  it("should use each track's own size rather than an average", () => {
+    const cells = slotCells(page, [40, 120], [50], 0, 0, 0);
 
-  it("should follow the grid it is given", () => {
-    expect(nearestSlot({ x: 60, y: 50 }, box, 2, 2)).toBe(0);
-    expect(nearestSlot({ x: 360, y: 50 }, box, 2, 2)).toBe(1);
-    expect(nearestSlot({ x: 60, y: 170 }, box, 2, 2)).toBe(2);
-  });
-
-  it("should survive a silly grid", () => {
-    expect(nearestSlot({ x: 60, y: 50 }, box, 0, 0)).toBe(0);
-    expect(nearestSlot({ x: 60, y: 50 }, { ...box, width: 0, height: 0 }, 4, 3)).toBe(0);
-  });
-
-  it("should map the tiles' area, not the frame around it", () => {
-    // A real case: the frame is 1260 wide and holds eight columns of 84px that
-    // are centred, so 294px of the frame is empty on each side. Measuring the
-    // frame spreads the columns over that space and puts every drop about two
-    // cells to the right, which is exactly what this guards against.
-    const frame = { left: 0, top: 0, width: 1260, height: 504 };
-    const tiles = { left: 294, top: 18, width: 672, height: 468 };
-
-    // The centre of the third column: 294 + two columns + half a column.
-    const point = { x: 294 + 2 * 84 + 42, y: 18 + 42 };
-
-    expect(nearestSlot(point, tiles, 8, 6)).toBe(2);
-    expect(nearestSlot(point, frame, 8, 6)).not.toBe(2);
-  });
-});
-
-describe("links/layout centeredGridBox()", () => {
-  // A page of the frame's size holding four centred columns of 72 with a 7 gap:
-  // 4*72 + 3*7 = 309 wide, so 475.5 is left over on each side of 1260.
-  const page = { left: 0, top: 0, width: 1260, height: 502 };
-  const columns = [72, 72, 72, 72];
-  const rows = [72, 72];
-
-  it("should place a centred grid inside its page", () => {
-    const box = centeredGridBox(page, columns, rows, 7, 7)!;
-
-    expect(box.width).toBe(309);
-    expect(box.height).toBe(151);
-    expect(box.left).toBeCloseTo(475.5, 3);
-    expect(box.top).toBeCloseTo(175.5, 3);
-  });
-
-  it("should describe the whole grid even when few slots are filled", () => {
-    // The page always holds a cell per slot, so the track list is the grid
-    // whatever the links look like. Measuring only the filled cells would give
-    // a narrower box and map the right hand columns too far left.
-    const box = centeredGridBox(page, columns, rows, 7, 7)!;
-    const centreOfLastColumn = box.left + 3 * 79 + 36;
-
-    expect(nearestSlot({ x: centreOfLastColumn, y: box.top + 36 }, box, 4, 2)).toBe(3);
+    // The grid is 160 wide, centred: 550 to 710.
+    expect(cells[0].x).toBeCloseTo(550 + 20, 3);
+    expect(cells[1].x).toBeCloseTo(590 + 60, 3);
   });
 
   it("should have nothing to say without tracks", () => {
-    expect(centeredGridBox(page, [], rows, 7, 7)).toBeNull();
-    expect(centeredGridBox(page, columns, [], 7, 7)).toBeNull();
+    expect(slotCells(page, [], rows, 8, 8, 0)).toEqual([]);
+    expect(slotCells(page, columns, [], 8, 8, 0)).toEqual([]);
+  });
+});
+
+describe("links/layout nearestCell()", () => {
+  const cells = slotCells(page, columns, rows, 8, 8, 0);
+
+  it("should report the cell a point sits on", () => {
+    expect(nearestCell(cells, 400, 206)?.index).toBe(0);
+    expect(nearestCell(cells, 860, 206)?.index).toBe(5);
+    expect(nearestCell(cells, 400, 298)?.index).toBe(6);
+    expect(nearestCell(cells, 860, 298)?.index).toBe(11);
+  });
+
+  it("should follow the margin the grid is centred in", () => {
+    // 400 is the first column's centre. Spreading the columns across the whole
+    // frame instead (1260 / 6 = 210) would put this point in column two, which
+    // is the error that made the right hand slots unreachable.
+    expect(nearestCell(cells, 400, 206)?.index).toBe(0);
+    expect(nearestCell(cells, 210, 206)?.index).toBe(0);
+  });
+
+  it("should pick the nearest cell rather than the one after a boundary", () => {
+    // Centre of column 0 is 400, of column 1 is 492; the midpoint is 446.
+    expect(nearestCell(cells, 445, 206)?.index).toBe(0);
+    expect(nearestCell(cells, 447, 206)?.index).toBe(1);
+  });
+
+  it("should clamp a point dragged outside the grid", () => {
+    expect(nearestCell(cells, -9999, -9999)?.index).toBe(0);
+    expect(nearestCell(cells, 9999, 9999)?.index).toBe(11);
+    // Far right but level with the first row: the last column of that row.
+    expect(nearestCell(cells, 9999, 206)?.index).toBe(5);
+  });
+
+  it("should have no answer for an empty grid", () => {
+    expect(nearestCell([], 0, 0)).toBeNull();
   });
 });
 

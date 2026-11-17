@@ -1,7 +1,7 @@
 import { RefObject, useEffect, useRef } from "react";
 
 import { claimGesture, ownsGesture, releaseGesture } from "./gestureLock";
-import { centeredGridBox, nearestSlot, trackSizes } from "./layout";
+import { SlotCell, nearestCell, slotCells, trackSizes } from "./layout";
 
 /** How long a press has to last before it picks a tile up. */
 const LONG_PRESS = 380;
@@ -13,6 +13,7 @@ type Options = {
   /** The clipped area holding the pages. */
   viewport: RefObject<HTMLElement | null>;
   enabled: boolean;
+  /** Fallback column count, used when the resolved tracks cannot be read. */
   columns: number;
   rows: number;
   /** Move a link from one slot to another. */
@@ -20,11 +21,18 @@ type Options = {
 };
 
 /**
- * Pick a tile up with a long press and drop it onto another cell.
+ * Pick a tile up with a long press and drop it onto the closest numbered slot.
  *
- * Everything during the gesture is written straight to the DOM through a CSS
- * variable and a class, so React re-renders nothing while a tile is moving.
- * React is only told once, at the end, which slot it landed in.
+ * Every cell is numbered by its place in the grid — first row left to right,
+ * then the second row, and so on — and the numbering is read from the page as
+ * it is laid out now, not from the widget's configured defaults. So changing
+ * the grid size in the sidebar changes what a drag can reach immediately.
+ *
+ * Where the tile lands is decided purely by distance between the pointer and
+ * each slot's centre. Nothing is hit-tested against the document, because the
+ * elements under a moving tile are a poor guide: a stacked popup, a page rail
+ * or an overlapping widget can answer in their place, which is what made so
+ * few slots reachable before.
  */
 export const useLinkDrag = ({
   columns,
@@ -44,15 +52,16 @@ export const useLinkDrag = ({
     let source: HTMLElement | null = null;
     let page: HTMLElement | null = null;
     let target: HTMLElement | null = null;
+    let cells: SlotCell[] = [];
     let timer: ReturnType<typeof setTimeout> | null = null;
     let pointerId = -1;
     let start = { x: 0, y: 0 };
-    // Where the tile's centre sat when it was picked up. Every offset is
-    // measured against this, which is what puts the tile under the pointer
-    // rather than at a distance from it.
+    // Where the tile's centre sat when it was picked up, so every offset is
+    // measured against the same origin.
     let anchor = { x: 0, y: 0 };
     let lifted = false;
     let abandoned = false;
+    // Absolute slot number that is currently lit and will receive the tile.
     let landing = -1;
     // Set when a press ends in a drop, so the click it would otherwise fire is
     // swallowed instead of opening the link.
@@ -77,6 +86,7 @@ export const useLinkDrag = ({
       clearTarget();
       source = null;
       page = null;
+      cells = [];
       pointerId = -1;
       lifted = false;
       abandoned = false;
@@ -84,26 +94,67 @@ export const useLinkDrag = ({
       releaseGesture("slot");
     };
 
-    /** Tiles of a page, in the order they are laid out. */
-    const tilesOf = (box: HTMLElement) =>
-      Array.from(box.children) as HTMLElement[];
+    /** The absolute slot a tile occupies. */
+    const slotOf = (element: HTMLElement | null): number => {
+      if (!element) return -1;
+
+      const stored = Number(element.dataset.slot);
+      if (Number.isFinite(stored)) return stored;
+
+      if (!page) return -1;
+      const at = Array.prototype.indexOf.call(page.children, element);
+      return at < 0 ? -1 : startOf(page) + at;
+    };
+
+    /** The absolute slot of the first cell on a page. */
+    const startOf = (box: HTMLElement): number => {
+      const first = box.firstElementChild as HTMLElement | null;
+      const stored = Number(first?.dataset.slot);
+      if (Number.isFinite(stored)) return stored;
+
+      const track = box.parentElement;
+      const index = track
+        ? Array.prototype.indexOf.call(track.children, box)
+        : 0;
+
+      return (
+        Math.max(0, index) *
+        Math.max(1, latest.current.columns) *
+        Math.max(1, latest.current.rows)
+      );
+    };
 
     /**
-     * The grid the page lays out, and where it sits.
+     * Number every cell of a page, at the centre of the space it occupies.
      *
-     * Taken from the resolved track sizes rather than from the cells: a page
-     * holds a cell per slot whether or not each slot has a link, so counting
-     * cells would undercount a partly used page and skew every position. The
-     * resolved tracks describe the whole grid either way.
+     * Track sizes come from the browser's resolved `grid-template-*`, which
+     * describes the whole grid whether or not each slot holds a link. When a
+     * browser will not resolve them, the page is split evenly using the counts
+     * the component knows, so a drag still works rather than reaching nothing.
      */
-    const gridOf = (box: HTMLElement) => {
+    const readCells = (box: HTMLElement): SlotCell[] => {
       const style = getComputedStyle(box);
-      const columnTracks = trackSizes(style.gridTemplateColumns);
-      const rowTracks = trackSizes(style.gridTemplateRows);
-      if (columnTracks.length === 0 || rowTracks.length === 0) return null;
-
       const rect = box.getBoundingClientRect();
-      const bounds = centeredGridBox(
+      const columnGap = Number.parseFloat(style.columnGap) || 0;
+      const rowGap = Number.parseFloat(style.rowGap) || 0;
+
+      let columnTracks = trackSizes(style.gridTemplateColumns);
+      let rowTracks = trackSizes(style.gridTemplateRows);
+
+      if (columnTracks.length === 0) {
+        const across = Math.max(1, Math.floor(latest.current.columns) || 1);
+        const width = (rect.width - columnGap * (across - 1)) / across;
+        columnTracks =
+          width > 0 ? Array.from({ length: across }, () => width) : [];
+      }
+
+      if (rowTracks.length === 0) {
+        const down = Math.max(1, Math.floor(latest.current.rows) || 1);
+        const height = (rect.height - rowGap * (down - 1)) / down;
+        rowTracks = height > 0 ? Array.from({ length: down }, () => height) : [];
+      }
+
+      return slotCells(
         {
           left: rect.left,
           top: rect.top,
@@ -112,73 +163,15 @@ export const useLinkDrag = ({
         },
         columnTracks,
         rowTracks,
-        Number.parseFloat(style.columnGap) || 0,
-        Number.parseFloat(style.rowGap) || 0,
-      );
-      if (!bounds) return null;
-
-      // The grid's own shape is the authority for the mapping, so a stale
-      // setting cannot skew where a drop lands.
-      return { bounds, columns: columnTracks.length, rows: rowTracks.length };
-    };
-
-    /**
-     * The first slot a page shows.
-     *
-     * Slots are numbered across the whole list while a drag happens inside one
-     * page, so the page's place in the rail has to be added back or a drop on
-     * page two would be written into page one.
-     */
-    const pageStartOf = (box: HTMLElement, size: number): number => {
-      const track = box.parentElement;
-      if (!track) return 0;
-
-      return Math.max(0, Array.prototype.indexOf.call(track.children, box)) * size;
-    };
-
-    /**
-     * The slot the tile is over, in absolute slot numbers.
-     *
-     * Measured from the tile's own centre, not from the pointer: the tile
-     * keeps the offset it was grabbed at, so a tile picked up by its corner
-     * hangs a whole cell away from the pointer. Judging by the pointer would
-     * light one cell up and drop the tile in another. The tile's centre is
-     * where the tile looks like it is, and that is what has to decide both.
-     *
-     * The cell under that point is asked of the document, so the cell that
-     * lights up and the cell the tile lands in are the same element. The tile
-     * ignores the pointer while it travels, so the hit test sees the cell
-     * beneath it rather than the tile itself.
-     *
-     * A centre over a gap or outside the grid has no cell under it, so those
-     * fall back to arithmetic and still snap to the nearest cell.
-     */
-    const slotUnderTile = (): number | null => {
-      if (!page || !source) return null;
-
-      const grid = gridOf(page);
-      if (!grid) return null;
-
-      const start = pageStartOf(page, grid.columns * grid.rows);
-
-      // The live rect, which already includes the drag offset.
-      const rect = source.getBoundingClientRect();
-      const centre = {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      };
-
-      const under = document
-        .elementFromPoint(centre.x, centre.y)
-        ?.closest?.(".Link") as HTMLElement | null;
-
-      if (under && under !== source && page.contains(under))
-        return start + tilesOf(page).indexOf(under);
-
-      return (
-        start + nearestSlot(centre, grid.bounds, grid.columns, grid.rows)
+        columnGap,
+        rowGap,
+        startOf(box),
       );
     };
+
+    /** The tile that occupies a slot, if it is on the page. */
+    const cellAt = (index: number): HTMLElement | null =>
+      page?.querySelector<HTMLElement>(`[data-slot="${index}"]`) ?? null;
 
     /** Put the tile's centre on a point. */
     const moveTo = (x: number, y: number) => {
@@ -188,47 +181,26 @@ export const useLinkDrag = ({
       source.style.setProperty("--drag-y", `${y - anchor.y}px`);
     };
 
-    /** Light up the cell the tile is over. */
-    const markTarget = () => {
-      if (!page) return;
+    /**
+     * Light up the numbered slot nearest the pointer.
+     *
+     * The same number is what the tile is dropped into, so the cell that shows
+     * the effect is always the cell that receives the link.
+     */
+    const markTarget = (x: number, y: number) => {
+      if (!page || cells.length === 0) return;
 
-      const slot = slotUnderTile();
-      if (slot === null || slot === landing) return;
+      const cell = nearestCell(cells, x, y);
+      if (!cell || cell.index === landing) return;
 
       clearTarget();
-      landing = slot;
+      landing = cell.index;
 
-      const grid = gridOf(page);
-      if (!grid) return;
-
-      const start = pageStartOf(page, grid.columns * grid.rows);
-      const cell = tilesOf(page)[slot - start];
-      if (cell && cell !== source) {
-        target = cell;
+      const element = cellAt(cell.index);
+      if (element && element !== source) {
+        target = element;
         target.classList.add("is-dropTarget");
       }
-    };
-
-    /**
-     * The slot of the cell currently carrying the landing effect.
-     *
-     * Read back from the element that is lit rather than recomputed, so the
-     * cell that shows the effect and the cell the tile is written into are
-     * one and the same thing by definition. Whatever decides the effect
-     * decides the drop; there is no second calculation to disagree with it.
-     */
-    const litSlot = (): number | null => {
-      if (!page) return null;
-
-      const lit = page.querySelector<HTMLElement>(".is-dropTarget");
-      if (!lit) return null;
-
-      const grid = gridOf(page);
-      if (!grid) return null;
-
-      const start = pageStartOf(page, grid.columns * grid.rows);
-      const at = tilesOf(page).indexOf(lit);
-      return at < 0 ? null : start + at;
     };
 
     const onDown = (event: PointerEvent) => {
@@ -248,27 +220,31 @@ export const useLinkDrag = ({
       lifted = false;
       abandoned = false;
       landing = -1;
+      cells = [];
 
       clearTimer();
       timer = setTimeout(() => {
         timer = null;
-        if (abandoned || !source) return;
+        if (abandoned || !source || !page) return;
         if (!claimGesture("slot")) return;
 
         lifted = true;
         if (area.setPointerCapture) area.setPointerCapture(pointerId);
         source.classList.add("is-dragging");
 
-        // Centre the tile on the pointer as it is picked up. The tile, the
-        // pointer and the cell that lights up then all agree by construction,
-        // instead of differing by however the tile happened to be grabbed.
+        // Number the grid as it is laid out right now, so the reachable slots
+        // always match the columns and rows showing in the sidebar.
+        cells = readCells(page);
+
+        // Centre the tile on the pointer as it is picked up, so the tile and
+        // the pointer agree and an edge slot is reachable by moving to it.
         const bounds = source.getBoundingClientRect();
         anchor = {
           x: bounds.left + bounds.width / 2,
           y: bounds.top + bounds.height / 2,
         };
         moveTo(start.x, start.y);
-        markTarget();
+        markTarget(start.x, start.y);
       }, LONG_PRESS);
     };
 
@@ -290,7 +266,7 @@ export const useLinkDrag = ({
       }
 
       moveTo(event.clientX, event.clientY);
-      markTarget();
+      markTarget(event.clientX, event.clientY);
     };
 
     const onUp = (event: PointerEvent) => {
@@ -300,17 +276,11 @@ export const useLinkDrag = ({
       if (area.hasPointerCapture?.(pointerId))
         area.releasePointerCapture(pointerId);
 
-      // Derived from where the tile sits among its page's children, so the
-      // move does not depend on an attribute being present.
-      const grid = page ? gridOf(page) : null;
-      const from =
-        source && page && grid
-          ? pageStartOf(page, grid.columns * grid.rows) +
-            tilesOf(page).indexOf(source)
-          : -1;
+      const from = slotOf(source);
       // Wherever the effect is showing, that is where it goes.
-      const to = litSlot() ?? landing;
-      const dropped = lifted && from >= 0 && to !== null && to >= 0 && to !== from;
+      const to = landing;
+      const dropped =
+        lifted && from >= 0 && to >= 0 && to !== from;
 
       drop();
       if (lifted) swallowClick = true;

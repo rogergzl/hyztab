@@ -39,10 +39,20 @@ export function reducer(state: State, action: Action) {
         index === action.data.index ? action.data.link : link,
       );
 
-    case "REORDER_LINK":
+    case "REORDER_LINK": {
       const links = [...state];
-      links.splice(action.data.to, 0, links.splice(action.data.index, 1)[0]);
+      const to = Math.max(0, Math.floor(action.data.to));
+      const [moved] = links.splice(action.data.index, 1);
+      if (!moved) return state;
+
+      // A drop can land on a numbered cell past the last link, so pad the gap
+      // rather than letting splice append it to the end: the tile must appear
+      // in the cell it was dropped on.
+      while (links.length < to) links.push(emptyLink());
+
+      links.splice(to, 0, moved);
       return links;
+    }
 
     default:
       throw new Error("Unknown action");

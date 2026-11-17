@@ -26,7 +26,7 @@ export const pageOfIndex = (index: number, size: number): number =>
 
 /**
  * The area the cells occupy inside a page, from the browser's own resolved
- * track sizes.
+ * track sizes, expressed as one centre point per numbered slot.
  *
  * Measuring the cells themselves is not enough: a page that is not completely
  * filled has fewer cells than the grid has slots, so their bounding box is
@@ -34,30 +34,82 @@ export const pageOfIndex = (index: number, size: number): number =>
  * list always describes the whole grid, however much of it is filled.
  *
  * Tracks are centred inside the page (`justify-content`/`align-content`), so
- * the grid is offset by half of what is left over.
+ * the grid is offset by half of what is left over. Per-track sizes are used
+ * rather than an average, so uneven tracks still give exact centres.
+ *
+ * `start` is the absolute slot number of the page's first cell: slots are
+ * numbered across the whole list, so page two begins at `rows * columns`.
  */
-export const centeredGridBox = (
+export const slotCells = (
   page: GridBox,
   columnTracks: number[],
   rowTracks: number[],
   columnGap: number,
   rowGap: number,
-): GridBox | null => {
-  if (columnTracks.length === 0 || rowTracks.length === 0) return null;
+  start: number,
+): SlotCell[] => {
+  if (columnTracks.length === 0 || rowTracks.length === 0) return [];
 
   const span = (tracks: number[], gap: number) =>
-    tracks.reduce((total, size) => total + size, 0) +
-    gap * (tracks.length - 1);
+    tracks.reduce((total, size) => total + size, 0) + gap * (tracks.length - 1);
 
-  const width = span(columnTracks, columnGap);
-  const height = span(rowTracks, rowGap);
+  const left = page.left + (page.width - span(columnTracks, columnGap)) / 2;
+  const top = page.top + (page.height - span(rowTracks, rowGap)) / 2;
 
-  return {
-    left: page.left + (page.width - width) / 2,
-    top: page.top + (page.height - height) / 2,
-    width,
-    height,
-  };
+  const cells: SlotCell[] = [];
+  let y = top;
+
+  for (let row = 0; row < rowTracks.length; row += 1) {
+    let x = left;
+
+    for (let column = 0; column < columnTracks.length; column += 1) {
+      cells.push({
+        index: start + row * columnTracks.length + column,
+        x: x + columnTracks[column] / 2,
+        y: y + rowTracks[row] / 2,
+      });
+      x += columnTracks[column] + columnGap;
+    }
+
+    y += rowTracks[row] + rowGap;
+  }
+
+  return cells;
+};
+
+/** A numbered slot, at the centre of the cell it occupies. */
+export type SlotCell = {
+  /** Absolute slot number: page start plus position on the page. */
+  index: number;
+  x: number;
+  y: number;
+};
+
+/**
+ * The numbered slot whose centre is closest to a point.
+ *
+ * Distance rather than containment: a point over a gap, outside the grid or
+ * beyond its edge belongs to no cell at all, yet a drag has to land somewhere.
+ * The nearest centre answers for every position, so every slot stays reachable
+ * and there is no dead zone between cells.
+ */
+export const nearestCell = (
+  cells: SlotCell[],
+  x: number,
+  y: number,
+): SlotCell | null => {
+  let best: SlotCell | null = null;
+  let bestDistance = Infinity;
+
+  for (const cell of cells) {
+    const distance = (cell.x - x) ** 2 + (cell.y - y) ** 2;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = cell;
+    }
+  }
+
+  return best;
 };
 
 /** Read the sizes out of a resolved `grid-template-*` list. */
@@ -73,42 +125,6 @@ export type GridBox = {
   top: number;
   width: number;
   height: number;
-};
-
-/**
- * The slot a point falls nearest to.
- *
- * Equal cells tile the page, so the cell containing the point is also the
- * nearest one. Points outside the box clamp to the edge cell, which is what
- * makes a tile dragged past the grid land in the last row or column rather
- * than nowhere.
- */
-export const nearestSlot = (
-  point: { x: number; y: number },
-  box: GridBox,
-  columns: number,
-  rows: number,
-): number => {
-  const across = Math.max(1, Math.floor(columns) || 1);
-  const down = Math.max(1, Math.floor(rows) || 1);
-
-  /**
-   * Which line a coordinate falls on.
-   *
-   * A box with no size has no geometry to work from; the first cell is the
-   * safe answer, whereas dividing by it would report the last one.
-   */
-  const line = (offset: number, size: number, count: number): number => {
-    if (!(size > 0)) return 0;
-
-    const raw = Math.floor(offset / size);
-    return Number.isFinite(raw) ? Math.min(count - 1, Math.max(0, raw)) : 0;
-  };
-
-  const column = line(point.x - box.left, box.width / across, across);
-  const row = line(point.y - box.top, box.height / down, down);
-
-  return row * across + column;
 };
 
 /** The absolute slot indices shown on a page, including cells that hold no link

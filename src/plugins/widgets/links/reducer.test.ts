@@ -135,6 +135,21 @@ describe("links/reducer()", () => {
     ]);
   });
 
+  it("should pad empty cells when a tile is dropped past the last link", () => {
+    // Slots are numbered by the grid, so a drop can land on a numbered cell
+    // that has no link yet. The tile must appear there, not be appended.
+    const moved = reducer([{ url: "https://a.com" }], reorderLink(0, 3));
+
+    expect(moved).toHaveLength(4);
+    expect(moved.slice(0, 3)).toEqual([{}, {}, {}]);
+    expect(moved[3]).toEqual({ url: "https://a.com" });
+  });
+
+  it("should ignore a reorder from an empty slot", () => {
+    const state = [{ url: "https://a.com" }];
+    expect(reducer(state, reorderLink(5, 0))).toEqual(state);
+  });
+
   it("should throw on unknown action", () => {
     expect(() => reducer([], { type: "UNKNOWN" } as any)).toThrow();
   });
