@@ -34,9 +34,9 @@ export const nameKey = (name?: string): string => {
  * is needed at all: links that have not changed cannot produce different
  * bookmarks, so the check avoids touching the bookmarks API entirely.
  */
-export const fingerprint = (entries: Array<[string, string]>): string => {
+export const fingerprint = (entries: string[][]): string => {
   let hash = 5381;
-  const text = entries.map(([key, url]) => `${key}\u0000${url}`).join("\u0001");
+  const text = entries.map((parts) => parts.join("\u0000")).join("\u0001");
 
   for (let index = 0; index < text.length; index += 1) {
     // djb2: cheap, stable, and order sensitive, which is what is wanted here.

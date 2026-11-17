@@ -2,7 +2,12 @@ import { nameKey } from "./name";
 
 /** A link as far as synchronisation is concerned. */
 export type SyncLink = {
-  /** Stable local id, used to track the entry across renames. */
+  /**
+   * Stable local id, used to track the entry across renames. A link's name is
+   * not an identity: editing the address changes the name derived from it, and
+   * matching on that would create a second bookmark instead of rewriting the
+   * first one.
+   */
   id: string;
   /** Title written to the bookmark. */
   title: string;
@@ -18,12 +23,12 @@ export type FolderEntry = {
 };
 
 /**
- * What is known about an entry that was already synced, keyed by name.
+ * What is known about an entry that was already synced, keyed by link id.
  *
- * Keying by name rather than by a link id means the links need no identifier
- * of their own, so nothing has to be migrated into existing link data. The
- * ledger's job is to remember which bookmarks are ours, so that only those are
- * ever removed.
+ * Older records are keyed by the normalised name instead; such a key is still
+ * honoured while a link carries that name, so an existing folder is adopted
+ * rather than duplicated. The ledger's job is to remember which bookmarks are
+ * ours, so that only those are ever removed.
  */
 export type LedgerEntry = {
   bookmarkId: string;
@@ -35,8 +40,15 @@ export type Ledger = Record<string, LedgerEntry>;
 export type Plan = {
   /** Links with no bookmark yet, in slot order. */
   create: SyncLink[];
-  /** Bookmarks whose title or address no longer matches the link. */
-  update: Array<{ bookmarkId: string; title: string; url: string }>;
+  /** Link id → the bookmark that already belongs to it, rewritten or not. */
+  bind: Array<{ linkId: string; bookmarkId: string; url: string }>;
+  /** Bookmarks whose title or address no longer matches their link. */
+  update: Array<{
+    linkId: string;
+    bookmarkId: string;
+    title: string;
+    url: string;
+  }>;
   /** Bookmarks whose link is gone, applied only on a manual sync. */
   remove: string[];
   /** Bookmarks to take on as links, on first attach only. */
@@ -55,6 +67,7 @@ export type PlanOptions = {
 
 const emptyPlan = (): Plan => ({
   create: [],
+  bind: [],
   update: [],
   remove: [],
   takeOn: [],
@@ -63,14 +76,18 @@ const emptyPlan = (): Plan => ({
 /**
  * Work out the writes needed to bring the folder and the links together.
  *
- * Matching is by name, and only by name. An address is a value to write, never
- * a way to recognise an entry: matching addresses would risk writing the wrong
- * one, which would leave a bookmark pointing somewhere unreachable, while a
- * mismatched name is merely a wrong label. Where two bookmarks carry the same
- * name the one earliest in the folder wins, so the outcome is stable.
+ * A link is matched to its bookmark by id first, so renaming a link or editing
+ * its address rewrites that one bookmark in place. Only a link the ledger has
+ * never seen falls back to matching by name, which is what adopts a folder on
+ * first attach and picks up records written before ids were stored.
+ *
+ * Addresses are still never used to recognise an entry: two links may share an
+ * address, and a wrong match would leave a bookmark pointing somewhere
+ * unreachable. Where two bookmarks carry the same name the earliest in the
+ * folder wins, so the outcome is stable.
  *
  * Only bookmarks recorded in the ledger are ever removed, so an entry the user
- * added to the folder by hand is never touched.
+ * filed in the folder by hand is never touched.
  */
 export const planSync = (
   links: SyncLink[],
@@ -79,6 +96,8 @@ export const planSync = (
   { taking, capacity }: PlanOptions,
 ): Plan => {
   const plan = emptyPlan();
+
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
 
   // First entry wins for a given name, giving a stable choice with duplicates.
   const byName = new Map<string, FolderEntry>();
@@ -91,7 +110,10 @@ export const planSync = (
 
   for (const link of links) {
     const key = nameKey(link.title);
-    const entry = byName.get(key);
+    // A record under the link's own id wins; a name-keyed one is what older
+    // records look like, and is only used while the link still bears that name.
+    const bound = ledger[link.id] ?? ledger[key];
+    const entry = (bound ? byId.get(bound.bookmarkId) : undefined) ?? byName.get(key);
 
     if (!entry) {
       plan.create.push(link);
@@ -99,9 +121,11 @@ export const planSync = (
     }
 
     claimed.add(entry.id);
+    plan.bind.push({ linkId: link.id, bookmarkId: entry.id, url: link.url });
 
     if (entry.title !== link.title || entry.url !== link.url)
       plan.update.push({
+        linkId: link.id,
         bookmarkId: entry.id,
         title: link.title,
         url: link.url,
@@ -116,17 +140,31 @@ export const planSync = (
       .slice(0, Math.max(0, capacity));
     plan.create = [];
     plan.update = [];
+    plan.bind = [];
     return plan;
   }
 
-  // Entries this extension created and no longer has a link for.
-  const known = new Set(
-    Object.values(ledger).map((entry) => entry.bookmarkId),
+  // A bookmark we created whose link no longer exists. Keyed records for links
+  // that still exist under that id or that name are left alone, and a bookmark
+  // another link has since adopted is never queued.
+  const liveIds = new Set(links.map((link) => link.id));
+  const liveNames = new Set(links.map((link) => nameKey(link.title)));
+  const queued = new Set<string>();
+
+  for (const [key, value] of Object.entries(ledger)) {
+    if (liveIds.has(key) || liveNames.has(key)) continue;
+    if (claimed.has(value.bookmarkId)) continue;
+    if (!byId.has(value.bookmarkId)) continue;
+    if (queued.has(value.bookmarkId)) continue;
+
+    queued.add(value.bookmarkId);
+    plan.remove.push(value.bookmarkId);
+  }
+
+  // Earliest first, so a manual sync removes them in folder order.
+  plan.remove.sort(
+    (a, b) => (byId.get(a)?.index ?? 0) - (byId.get(b)?.index ?? 0),
   );
-  plan.remove = entries
-    .filter((entry) => known.has(entry.id) && !claimed.has(entry.id))
-    .sort((a, b) => a.index - b.index)
-    .map((entry) => entry.id);
 
   return plan;
 };

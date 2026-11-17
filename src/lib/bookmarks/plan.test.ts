@@ -61,8 +61,50 @@ describe("bookmarks/plan", () => {
     expect(plan.create).toHaveLength(0);
     expect(plan.remove).toHaveLength(0);
     expect(plan.update).toEqual([
-      { bookmarkId: "b1", title: "Steam", url: "https://new.com" },
+      {
+        linkId: "l1",
+        bookmarkId: "b1",
+        title: "Steam",
+        url: "https://new.com",
+      },
     ]);
+  });
+
+  it("should rewrite the same bookmark when the name and address both change", () => {
+    // Editing the address changes the auto-derived name too. Matching on the
+    // name alone used to create a second bookmark and leave the first behind.
+    const plan = planSync(
+      [link("l1", "Jellyfin", "http://jellyfin.local:8096")],
+      [entry("b1", "Motd", "http://motd.local:8080")],
+      { l1: { bookmarkId: "b1", url: "http://motd.local:8080" } },
+      options,
+    );
+
+    expect(plan.create).toHaveLength(0);
+    expect(plan.remove).toHaveLength(0);
+    expect(plan.update).toEqual([
+      {
+        linkId: "l1",
+        bookmarkId: "b1",
+        title: "Jellyfin",
+        url: "http://jellyfin.local:8096",
+      },
+    ]);
+  });
+
+  it("should adopt a name-keyed record left by an older version", () => {
+    // Older ledgers stored the normalised name as the key. That record must
+    // still find its bookmark, or the first run would duplicate the folder.
+    const plan = planSync(
+      [link("l1", "Steam", "https://new.com")],
+      [entry("b1", "Steam", "https://old.com")],
+      { steam: { bookmarkId: "b1", url: "https://old.com" } },
+      options,
+    );
+
+    expect(plan.create).toHaveLength(0);
+    expect(plan.update[0].bookmarkId).toBe("b1");
+    expect(plan.remove).toHaveLength(0);
   });
 
   it("should never match on the address", () => {

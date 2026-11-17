@@ -14,7 +14,12 @@ import {
 } from "../../../lib/bookmarks";
 import { loadSyncState, saveSyncState } from "../../../db/bookmarkSync";
 
-export type SyncLinkInput = { title: string; url: string };
+export type SyncLinkInput = {
+  /** Stable per-link id; the bookmark is bound to it, not to the name. */
+  id?: string;
+  title: string;
+  url: string;
+};
 
 export type BookmarkSyncStatus = {
   /** Whether this browser has a bookmarks API at all. */
@@ -69,10 +74,15 @@ export const useBookmarkSync = ({
   const supported = Boolean(bookmarksApi());
 
   // The fingerprint is what the effect keys on, so it has to be a plain value
-  // rather than the array, which is a new object on every render.
+  // rather than the array, which is a new object on every render. The id is
+  // part of it so that adding ids to links saved by an older version forces
+  // one reconcile, which is what moves their record onto the id.
   const marked = React.useMemo(
-    () => fingerprint(links.map((link) => [nameKey(link.title), link.url])),
-    [JSON.stringify(links.map((link) => [link.title, link.url]))],
+    () =>
+      fingerprint(
+        links.map((link) => [link.id ?? "", nameKey(link.title), link.url]),
+      ),
+    [JSON.stringify(links.map((link) => [link.id, link.title, link.url]))],
   );
 
   // Read through a ref so the effect does not restart as props change.
@@ -97,7 +107,9 @@ export const useBookmarkSync = ({
       const entries = await readFolder(folderId);
 
       const syncLinks = current.map((link) => ({
-        id: nameKey(link.title),
+        // A link configured before ids existed still falls back to its name,
+        // which matches how older ledger records were keyed.
+        id: link.id ?? nameKey(link.title),
         title: link.title,
         url: link.url,
       }));
@@ -121,18 +133,27 @@ export const useBookmarkSync = ({
         if (plan.takeOn.length > 0)
           take(plan.takeOn.map((entry) => ({ title: entry.title, url: entry.url })));
       } else {
+        // Remember which bookmark belongs to which link before writing
+        // anything, so a rename next time rewrites this bookmark instead of
+        // creating another one beside it.
+        for (const item of plan.bind)
+          ledger[item.linkId] = {
+            bookmarkId: item.bookmarkId,
+            url: item.url,
+          };
+
         // Serial on purpose: overlapping writes leave the order indeterminate.
         for (const link of plan.create) {
           const bookmarkId = await createBookmark(folderId, {
             title: link.title,
             url: link.url,
           });
-          ledger[nameKey(link.title)] = { bookmarkId, url: link.url };
+          ledger[link.id] = { bookmarkId, url: link.url };
         }
 
         for (const item of plan.update) {
           await updateBookmark(item.bookmarkId, item);
-          ledger[nameKey(item.title)] = {
+          ledger[item.linkId] = {
             bookmarkId: item.bookmarkId,
             url: item.url,
           };

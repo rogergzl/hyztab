@@ -69,6 +69,20 @@ const Links: FC<Props> = ({
   );
   const dispatch = useSavedReducer(reducer, data.links, saveLinks);
 
+  // Links saved before ids existed get one once, so the bookmark sync can bind
+  // a bookmark to the link itself rather than to its (changeable) name.
+  React.useEffect(() => {
+    if (!data.links.some((link) => hasUrl(link) && !link.id)) return;
+
+    dispatch(
+      setLinks(
+        data.links.map((link) =>
+          hasUrl(link) && !link.id ? { ...link, id: nanoid(12) } : link,
+        ),
+      ),
+    );
+  }, [data.links, dispatch]);
+
   const shown = data.visible || visible;
   const paging = shown && pages > 1;
 
@@ -112,7 +126,7 @@ const Links: FC<Props> = ({
   // panel is saved as it happens. The view follows it to its page.
   const addNew = () => {
     const index = data.links.length;
-    dispatch(addLink({}));
+    dispatch(addLink({ id: nanoid(12) }));
     setPage(pageOfIndex(index, size));
     setEditing(index);
   };
@@ -120,7 +134,7 @@ const Links: FC<Props> = ({
   // Filling a cell that holds no link yet puts one in that exact slot, so a
   // gap in the grid can be filled in place instead of only appending.
   const fillSlot = (index: number) => {
-    dispatch(insertLink(index, {}));
+    dispatch(insertLink(index, { id: nanoid(12) }));
     setEditing(index);
   };
 
@@ -160,6 +174,7 @@ const Links: FC<Props> = ({
         if (cursor >= next.length) break;
 
         next[cursor] = {
+          id: nanoid(12),
           name: entry.title,
           shortName: entry.title,
           url: entry.url,
@@ -184,7 +199,11 @@ const Links: FC<Props> = ({
       () =>
         data.links
           .filter(hasUrl)
-          .map((link) => ({ title: shortNameOf(link), url: link.url! })),
+          .map((link) => ({
+            id: link.id,
+            title: shortNameOf(link),
+            url: link.url!,
+          })),
       [data.links],
     ),
     onTakeOn: takeOn,
@@ -285,7 +304,16 @@ const Links: FC<Props> = ({
           link={editingLink}
           cache={cache}
           onSaveIcon={saveIcon}
-          onChange={(link) => dispatch(updateLink(editing, link))}
+          onChange={(link) =>
+            dispatch(
+              updateLink(editing, {
+                ...link,
+                // The id is what ties the link to its bookmark, so it must
+                // survive every edit, including one made before it was stored.
+                id: link.id ?? editingLink.id ?? nanoid(12),
+              }),
+            )
+          }
           onRemove={() => {
             dispatch(removeLink(editing));
             setEditing(null);

@@ -8,6 +8,13 @@ export const ICON_FAVICON = "_favicon";
 export const ICON_CUSTOM = "_custom";
 
 export type Link = {
+  /**
+   * Stable identity for this link. Distinct from the name and the address on
+   * purpose: both change when the link is edited, and the bookmark mirror
+   * binds a bookmark to this id so an edit rewrites it instead of adding a
+   * second one. Absent on links saved before ids existed; assigned on load.
+   */
+  id?: string;
   /** Target address. Absent until the user configures it. */
   url?: string;
   /**
