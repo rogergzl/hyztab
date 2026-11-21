@@ -296,9 +296,15 @@ const LinkShare: React.FC = () => {
     setAutoAccept({ groups: next });
   };
 
+  // 排除本机的密钥：服务端会把「自己」也返回，直接拿来渲染会出现
+  // 「没有任何可选用户，却列出了自己的分组」这种看不懂的状态。
+  const otherPeers = peers.filter((peer) =>
+    signingIdentities.every((self) => self.fingerprint !== peer.fingerprint),
+  );
+
   const peerGroups = Array.from(
     new Set(
-      peers
+      otherPeers
         .map((peer) => peer.groupName)
         .filter((group): group is string => Boolean(group)),
     ),
@@ -390,10 +396,13 @@ const LinkShare: React.FC = () => {
                   type="button"
                   className="button button--secondary"
                   onClick={() => {
-                    setEditingGroupOf(
-                      editingGroupOf === identity.id ? null : identity.id,
-                    );
-                    setGroupDraft({ name: "", password: "" });
+                    const opening = editingGroupOf !== identity.id;
+                    setEditingGroupOf(opening ? identity.id : null);
+                    // 回填当前分组名，方便改名；密码出于安全从不回填。
+                    setGroupDraft({
+                      name: opening ? identity.groupName ?? "" : "",
+                      password: "",
+                    });
                   }}
                 >
                   分组
@@ -409,6 +418,9 @@ const LinkShare: React.FC = () => {
             </div>
             {editingGroupOf === identity.id && (
               <div className="ShareGroupEditor">
+                <small className="ShareGroupHint">
+                  仅用于新建分组或切换分组；已加入过就不必再填。
+                </small>
                 <input
                   type="text"
                   value={groupDraft.name}
@@ -442,31 +454,28 @@ const LinkShare: React.FC = () => {
         <p className="info">
           开启后，来自指定用户或指定分组的分享会直接写入快速链接；未开启的需要在下方手动添加。
         </p>
-        {peers.length === 0 ? (
-          <p className="info">暂无可选用户（同组内还没有其他人）。</p>
+        {otherPeers.length === 0 ? (
+          <p className="info">
+            同组内还没有其他人。把「分组名 + 密码」告诉对方，Ta 加入后这里就会出现。
+          </p>
         ) : (
-          peers
-            .filter((peer) =>
-              signingIdentities.every((self) => self.fingerprint !== peer.fingerprint),
-            )
-            .map((peer) => (
-              <label key={peer.fingerprint} className="ShareAutoRow">
-                <input
-                  type="checkbox"
-                  checked={autoUsers.includes(peer.fingerprint)}
-                  onChange={(event) =>
-                    toggleAutoUser(peer.fingerprint, event.target.checked)
-                  }
-                />
-                <span>
-                  {peer.name}
-                  <small>
-                    {peer.groupName || "未分组"} ·{" "}
-                    {peer.fingerprint.slice(0, 8)}
-                  </small>
-                </span>
-              </label>
-            ))
+          otherPeers.map((peer) => (
+            <label key={peer.fingerprint} className="ShareAutoRow">
+              <input
+                type="checkbox"
+                checked={autoUsers.includes(peer.fingerprint)}
+                onChange={(event) =>
+                  toggleAutoUser(peer.fingerprint, event.target.checked)
+                }
+              />
+              <span>
+                {peer.name}
+                <small>
+                  {peer.groupName || "未分组"} · {peer.fingerprint.slice(0, 8)}
+                </small>
+              </span>
+            </label>
+          ))
         )}
         {peerGroups.length > 0 && (
           <>
