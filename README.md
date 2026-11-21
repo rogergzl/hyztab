@@ -64,7 +64,8 @@ NBA 比分、文学钟、留言板、笑话、工时统计、IP 信息、自定�
 - 私钥不出浏览器，设置导出文件里也不含私钥
 - 发布时选择接收者；对方核对指纹一致后才添加
 - 更新后对方需手动刷新，不会自动推送
-- 需要一个中转服务（扩展本身不建服务器）；局域网临时用可 `npm run share-server`
+- 需要一个中转服务（扩展本身不建服务器）；局域网临时用可 `npm run share-server`，
+  长期或公网使用见下方[「可选：中转服务部署」](#可选中转服务部署)
 
 ### 外观与数据
 
@@ -127,6 +128,71 @@ npm run build:chromium        # 产物在 dist/chromium/
 - **拖动落位不靠命中测试**：直接按格子编号取最近中心，避免弹层 / 跨页时命中错误
 - **默认值只影响新装**：改默认布局不会覆盖已有用户的配置，需要时用一次性迁移
 - **组件不各存副本**：状态统一从中间层读，避免多实例不同步
+
+## 可选：中转服务部署
+
+标签分享需要一个中转服务（扩展本身不建服务器）。**不需要分享功能就跳过本节**，
+其它功能不受影响。
+
+镜像已发布在 Docker Hub：`lindagao/huayuzhu-relay-node:1.0.2`
+（<https://hub.docker.com/r/lindagao/huayuzhu-relay-node>）
+
+### 部署前准备
+
+| 需要 | 说明 |
+| --- | --- |
+| 一台能跑 Docker 的 Linux | 云主机 / 内网服务器 / NAS 均可；1Panel、宝塔等面板可直接导入 compose |
+| 一个强随机令牌 | 登录管理界面用，也是分享签名的校验依据（`openssl rand -hex 24` 可生成） |
+| 一个可用端口 | 默认 `8787`，需放行；公网建议前面挂 Nginx 终止 TLS |
+| 一个持久化目录 | 挂到容器 `/app/data`；分享、密钥、日志、设置都在里面，备份就是打包它 |
+
+### 启动
+
+```bash
+docker run -d --name huayuzhu-relay-node --restart unless-stopped \
+  -p 8787:8787 -v "$(pwd)/data:/app/data" \
+  -e RELAY_ADMIN_TOKEN='换成你的强随机令牌' \
+  lindagao/huayuzhu-relay-node:1.0.2
+```
+
+用 compose：
+
+```yaml
+services:
+  relay-node:
+    image: lindagao/huayuzhu-relay-node:1.0.2
+    container_name: huayuzhu-relay-node
+    restart: unless-stopped
+    ports: ["8787:8787"]
+    environment:
+      RELAY_ADMIN_TOKEN: "换成你的强随机令牌"
+    volumes:
+      - ./data:/app/data
+```
+
+```bash
+mkdir -p ./data && docker compose up -d
+```
+
+管理界面 `http://<服务器IP>:8787/admin`（令牌登录）。把 `http://<服务器IP>:8787/`
+填进扩展「标签分享」的服务地址；同一个地址也可作为「代理节点」。
+
+### 面板里能改什么
+
+| 配置 | 位置 | 说明 |
+| --- | --- | --- |
+| 代理访问是否需令牌 | 设置 | 浏览器 PAC 无法携带认证头，扩展直连时应关闭 |
+| 是否允许访问私网 | 设置 | 只做外网中转建议关闭，防止被当作内网探测跳板 |
+| 日志保留条数 | 设置 | 100 ~ 100000，超出丢弃最旧记录 |
+| 管理令牌 | 设置 | 修改后立即生效，并持久化到 `data/settings.json` |
+| 端口 / 反向代理子路径 | 只读展示 | 属启动参数，只能在启动容器时用环境变量设置 |
+
+面板还能看概览、按类别/级别筛选日志、撤销任意分享。**密钥由扩展端生成**
+（私钥始终不出浏览器），服务端只存公钥与指纹，面板可对每个已注册身份改名 /
+禁用 / 删除，删除会连带撤销它发布的分享。
+
+> 内网无外网时也可用离线包部署（作者自用，不随仓库分发）；镜像为 `linux/amd64`，
+> ARM 机器需自行构建。签名协议、端口复用等实现约定见 [`MANUAL.md`](MANUAL.md)。
 
 ## 已知问题
 
