@@ -15,6 +15,9 @@
 *.zip
 *.crx
 *.xpi
+# Docker 镜像导出与离线部署包（体积大、可再生成，不入库）
+*.tar
+*.tar.gz
 #
 # /dist/ 是整体忽略。若确实要把打包好的 zip 一起传到 GitHub，把上面那行换成：
 #   /dist/*

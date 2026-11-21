@@ -36,6 +36,7 @@
 2. 在 Edge / Chrome 扩展页开启「开发人员模式」，选择「加载已解压的扩展程序」，指向 `dist/chromium/`。
 3. 临时局域网分享：双击根目录 `一键启动分享服务.bat`，用窗口打印的地址连接；长期/跨公网使用可自托管服务：`npm run share-server`，默认监听 `127.0.0.1:8787`，数据保存在本地 `share-data/`。
 4. Linux 服务器长期部署（带 Web 管理界面 + 日志）：用 `deploy/relay-node/` 转发节点包，`cp .env.example .env` 后设置 `RELAY_ADMIN_TOKEN`，再 `docker compose up -d --build`；浏览器打开 `http://<服务器IP>:8787/admin`，同一地址填入扩展的「代理节点」与「标签分享」服务地址。详见该目录 `README.md`。
+5. **离线 / 内网隔离服务器**：用 `deploy/huayuzhu-relay-offline.tar.gz`（已含预构建 Docker 镜像，目标机器无需联网/Node/源码），解压后设置 `.env` 令牌并执行 `./deploy.sh` 即可；详见包内 `README.md`。
 
 > Edge / Chrome 不能直接拖入 zip 安装。zip 仅用于备份或分发；开发安装请始终指向 `dist/chromium/` 文件夹。
 
