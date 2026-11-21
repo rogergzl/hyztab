@@ -18,10 +18,10 @@ if errorlevel 1 goto fail
 echo [2/3] Packaging zip...
 if exist "dist\huayuzhu-chromium.zip" del /f /q "dist\huayuzhu-chromium.zip"
 pushd "dist\chromium"
-tar -a -c -f "..\huayuzhu-chromium.zip" *
-set TARRESULT=%errorlevel%
+powershell -NoProfile -Command "Compress-Archive -Force -Path '.\*' -DestinationPath '..\huayuzhu-chromium.zip'"
+set ZIPRESULT=%errorlevel%
 popd
-if not "%TARRESULT%"=="0" goto fail
+if not "%ZIPRESULT%"=="0" goto fail
 
 echo [3/3] Done.
 echo Output: dist\huayuzhu-chromium.zip
