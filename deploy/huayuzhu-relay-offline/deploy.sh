@@ -16,9 +16,15 @@
 #   自动化：./deploy.sh --mode=1 --non-interactive   （读现有 .env，不提问）
 set -e
 
-# 定位到脚本所在目录，保证下面所有 ./ 路径都落在服务端目录内
-cd "$(dirname "${BASH_SOURCE[0]}")"
-ROOT="$(pwd)"
+# 定位离线包目录：脚本可放在包内，也可放在包的上级 deploy/ 目录
+# 两处使用同一份文件，避免实现分叉
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -d "$SELF_DIR/huayuzhu-relay-offline" ] && [ ! -f "$SELF_DIR/image/huayuzhu-relay-node-image.tar" ]; then
+  ROOT="$SELF_DIR/huayuzhu-relay-offline"
+else
+  ROOT="$SELF_DIR"
+fi
+cd "$ROOT"
 
 IMAGE="huayuzhu-relay-node:1.0.0"
 TAR="./image/huayuzhu-relay-node-image.tar"
