@@ -8,6 +8,7 @@ import LinksGrid from "./LinksGrid";
 import Persist from "./Persist";
 import "./Settings.sass";
 import System from "./System";
+import TutorialLink from "./TutorialLink";
 import Widgets from "./Widgets";
 
 const Settings: React.FC = () => {
@@ -92,6 +93,8 @@ const Settings: React.FC = () => {
         </p>
 
         <Persist />
+
+        <TutorialLink />
       </div>
     </div>
   );

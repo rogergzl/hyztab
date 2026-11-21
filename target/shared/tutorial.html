@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>使用教程 · 花与竹标签</title>
+    <link rel="shortcut icon" href="/icons/128.png" />
+    <link rel="stylesheet" href="tutorial.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar__inner">
+        <a class="brand" href="index.html">
+          <img src="/icons/128.png" alt="" width="32" height="32" />
+          <span>花与竹标签</span>
+        </a>
+        <nav class="topbar__actions" aria-label="快捷操作">
+          <a class="button button--ghost" href="#top">回到顶部</a>
+          <a class="button button--primary" href="index.html">返回新标签页</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top" class="layout">
+      <aside class="sidebar">
+        <p class="sidebar__title">教程目录</p>
+        <nav class="sidebar__nav" aria-label="教程目录">
+          <a href="#start">1. 快速开始</a>
+          <a href="#links">2. 快速链接</a>
+          <a href="#proxy">3. 代理访问</a>
+          <a href="#share">4. 标签分享</a>
+          <a href="#bookmarks">5. 书签同步</a>
+          <a href="#data">6. 数据与备份</a>
+          <a href="#faq">7. 常见问题</a>
+        </nav>
+        <p class="sidebar__note">
+          本页随扩展一起离线提供，不上传任何数据，也不需要联网。
+        </p>
+      </aside>
+
+      <div class="content">
+        <section class="hero" aria-labelledby="hero-title">
+          <span class="hero__badge">离线教程</span>
+          <h1 id="hero-title">把新标签页变成你的工作台</h1>
+          <p>
+            这份教程覆盖「花与竹标签」的日常操作与进阶设置。所有配置保存在本机浏览器，
+            修改后自动生效，刷新页面不会丢失。
+          </p>
+          <p class="hero__hint">
+            从任意新标签页点击左下角设置按钮，拉到侧边栏底部即可再次打开本页。
+          </p>
+        </section>
+
+        <section id="start" class="card">
+          <h2>1. 快速开始</h2>
+          <p>全新安装或点击「重置」后，页面默认显示四个组件：</p>
+          <ul class="checks">
+            <li>顶部居中：时间、问候语、搜索框（默认 Bing）</li>
+            <li>底部居中：快速链接网格（默认 6 列 × 4 行）</li>
+          </ul>
+          <p>
+            网格会按屏幕高度自动缩放，1280×720、1366×768、1920×1080 下都保持间距。
+            组件的位置与大小可以在侧边栏「组件 → 显示设置」中逐个调整；
+            现有用户的手动设置不会被默认值覆盖。
+          </p>
+          <aside class="note">
+            侧边栏按「组件实例」列出。若出现多个同名组件，说明重复添加了，
+            用每项左侧的垃圾桶图标删掉多余的即可。
+          </aside>
+        </section>
+
+        <section id="links" class="card">
+          <h2>2. 快速链接</h2>
+          <p>链接在主页上直接管理，不需要在侧边栏逐条配置。</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>想做的事</th><th>操作</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>新增链接</td><td>在快速链接区域右键</td></tr>
+                <tr><td>编辑链接</td><td>右键某个具体链接</td></tr>
+                <tr><td>删除链接</td><td>右键链接 → 面板左下角「删除」</td></tr>
+                <tr><td>配置空槽位</td><td>左键点击带 <span class="code">+</span> 的格子</td></tr>
+                <tr><td>访问链接</td><td>左键点击，或按数字键 <kbd>1</kbd> ~ <kbd>9</kbd></td></tr>
+                <tr><td>翻页</td><td>鼠标滚轮、页码圆点、左右箭头，或按住拖动</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>网格与换位</h3>
+          <p>
+            网格尺寸在侧边栏「快速链接网格」里设置：横向 1~16 列、纵向 1~6 行，
+            整页共享同一份配置。每一格都是独立槽位，删除链接只清空该格，后面的链接不会前移。
+          </p>
+          <p>
+            按住方块约 0.4 秒即可拾起并拖动，目标格会高亮；松手后与高亮格<strong>交换位置</strong>，
+            其它格子原地不动，空槽位也能交换。超出一页的链接可用滚轮或拖动翻页。
+          </p>
+
+          <h3>名称与图标</h3>
+          <p>
+            「完整名称」作为底层数据保留，鼠标悬浮时显示；「短名称」显示在图标下方，
+            留空时自动从完整名称推断。图标可选站点 favicon，或上传本地图片（自动裁剪为 64×64）。
+            自定义图标只存本机，不随分享上传。
+          </p>
+        </section>
+
+        <section id="proxy" class="card">
+          <h2>3. 代理访问</h2>
+          <p>
+            在侧边栏「快速链接网格 → 默认代理节点」里预先配置多个「名称 + 地址」，
+            然后在链接配置面板勾选「代理访问」，直接展开下拉框选择节点；
+            也可以选「自定义地址」临时填写。
+          </p>
+          <ul class="checks">
+            <li>地址支持 <span class="code">主机:端口</span>、<span class="code">http://…</span>、<span class="code">socks5://…</span>、<span class="code">socks4://…</span></li>
+            <li>修改节点地址会同步到所有选用它的链接；删除节点则回退到链接原地址</li>
+            <li>「代理兜底」留空则未命中域名直连；填本地代理（如 Clash）则先走它，连不上再直连</li>
+          </ul>
+          <aside class="note">
+            这是浏览器级 PAC 按<strong>域名</strong>路由，不是按单个链接或标签页。
+            同域名的其它页面也会走同一代理，子域名需要单独配置。
+            没有任何链接启用代理时，扩展会清除 PAC，把控制权交还系统。
+          </aside>
+        </section>
+
+        <section id="share" class="card">
+          <h2>4. 标签分享</h2>
+          <p>无需账号登录，把配置好的链接发给另一个人；双方各自持有一对密钥。</p>
+          <ol class="steps">
+            <li>在侧边栏「快速链接网格 → 标签分享」填入中转服务地址并点击「连接」。</li>
+            <li>填写便于识别的密钥名称，点击「生成密钥」；服务端只存公钥与指纹。</li>
+            <li>双方都配置好后，在链接配置面板勾选「标签分享」，选择自己的密钥与接收用户，点击「发布分享」。</li>
+            <li>对方在侧边栏「收到的分享」中校验指纹后点「添加」，链接会进入其快速链接空槽。</li>
+            <li>链接更新后先「更新分享」；接收方在网格下方点「刷新分享」手动拉取。</li>
+          </ol>
+          <aside class="note">
+            临时局域网分享可双击仓库根目录的「一键启动分享服务.bat」，窗口会打印局域网地址；
+            长期运行用 <span class="code">npm run share-server</span>，默认监听
+            <span class="code">127.0.0.1:8787</span>。私钥只保存在本机，不上传，也不包含在导出的设置文件中。
+            生产环境请放在 HTTPS 反向代理之后。
+          </aside>
+        </section>
+
+        <section id="bookmarks" class="card">
+          <h2>5. 书签同步</h2>
+          <p>
+            快速链接会镜像到书签栏文件夹「标签页备份书签，请勿删除」，默认开启。
+            书签只保存链接名称与网址，用于备份和跨浏览器查看。
+          </p>
+          <ul class="checks">
+            <li>链接身份绑定稳定 id；改网址或名称不会生成重复书签</li>
+            <li>只删除本扩展自己创建、且已无对应链接的书签</li>
+            <li>删除链接后需手动同步；拖动换位不会改变书签文件夹顺序</li>
+          </ul>
+        </section>
+
+        <section id="data" class="card">
+          <h2>6. 数据与备份</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>数据</th><th>保存位置</th><th>说明</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>组件与链接配置</td><td>chrome.storage.sync</td><td>超限时自动分片；扩展由浏览器持久保存</td></tr>
+                <tr><td>配置本机快照</td><td>chrome.storage.local</td><td>侧边栏「持久化配置」保存 / 恢复，含分享私钥</td></tr>
+                <tr><td>自定义图标</td><td>IndexedDB</td><td>不占同步配额，不跨设备同步</td></tr>
+                <tr><td>快速链接</td><td>书签文件夹</td><td>按稳定 id 对账，只管理自有书签</td></tr>
+                <tr><td>整套设置</td><td>设置文件</td><td>侧边栏底部「导出 / 导入」</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            建议在做大调整前点一次「导出」，保存为
+            <span class="code">花与竹标签-设置.json</span>；需要恢复时用「导入」。
+            「重置」会回到本教程开头描述的默认布局。
+          </p>
+        </section>
+
+        <section id="faq" class="card">
+          <h2>7. 常见问题</h2>
+          <h3>安装时提示「更改代理设置」？</h3>
+          <p>浏览器规定代理权限必须在安装期申请，无法改成按需授权；不使用代理功能时它不会接管网络。</p>
+          <h3>读取站点真实名称为什么需要额外权限？</h3>
+          <p>只有主动打开该开关时才申请 <span class="code">&lt;all_urls&gt;</span>，关闭即交还；未开启时仅用域名推断名称。</p>
+          <h3>分享链接更新后对方没变化？</h3>
+          <p>发布者要点「更新分享」，接收方要点「刷新分享」；同步是手动的，不会自动覆盖本地内容。</p>
+          <h3>悬浮提示被裁切？</h3>
+          <p>弹窗会按内容自动换行，首/末列贴边对齐，顶行翻到下方；若仍异常请确认使用的是当前版本。</p>
+        </section>
+
+        <footer class="footer">
+          <p>花与竹标签 · 使用教程 · 随扩展离线提供</p>
+          <a class="button button--primary" href="index.html">返回新标签页</a>
+        </footer>
+      </div>
+    </main>
+  </body>
+</html>

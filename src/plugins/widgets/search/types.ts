@@ -9,6 +9,6 @@ type Data = {
 export type Props = API<Data>;
 
 export const defaultData: Data = {
-  searchEngine: "google",
+  searchEngine: "bing",
   suggestionsQuantity: 4,
 };

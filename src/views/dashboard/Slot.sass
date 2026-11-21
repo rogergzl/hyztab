@@ -2,20 +2,20 @@
   position: absolute
 
   &.topLeft
-    top: 2rem
+    top: #{"clamp(1.5rem, 3.6vh, 2rem)"}
     left: 0
     text-align: left
 
   &.topCentre
     // Set down from the very top so a clock and greeting sit centred in the
     // space left above the quick links band rather than hugging the edge.
-    top: 3.25rem
+    top: #{"clamp(2rem, 4vh, 3.25rem)"}
     left: 50%
     transform: translateX(-50%)
     text-align: center
 
   &.topRight
-    top: 0
+    top: #{"clamp(1.5rem, 3.6vh, 2rem)"}
     right: 0
     text-align: right
 
@@ -38,17 +38,17 @@
     text-align: right
 
   &.bottomLeft
-    bottom: 3rem
+    bottom: #{"clamp(1.5rem, 4vh, 3rem)"}
     left: 0
     text-align: left
 
   &.bottomCentre
-    bottom: 3rem
+    bottom: #{"clamp(1.5rem, 4vh, 3rem)"}
     left: 50%
     transform: translateX(-50%)
     text-align: center
 
   &.bottomRight
-    bottom: 3rem
+    bottom: #{"clamp(1.5rem, 4vh, 3rem)"}
     right: 0
     text-align: right

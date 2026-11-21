@@ -137,6 +137,67 @@ export const exportStore = (): string => {
   return JSON.stringify({ ...values, version: 3 });
 };
 
+/**
+ * Local persistence snapshot.
+ *
+ * `chrome.storage.sync` is already durable in a browser extension, but users
+ * reasonably expect an explicit "persist" action. This keeps a full, raw copy
+ * in `chrome.storage.local` — including share private keys that the exported
+ * settings file deliberately omits — so an accidental reset can be undone.
+ */
+const PERSIST_KEY = "huayuzhu/persisted-config";
+
+type PersistedSnapshot = {
+  savedAt: string;
+  values: Record<string, unknown>;
+};
+
+type LocalArea = {
+  get: (key: string) => Promise<Record<string, PersistedSnapshot>>;
+  set: (items: Record<string, PersistedSnapshot>) => Promise<void>;
+};
+
+const localArea = (): LocalArea | null => {
+  const root = globalThis as Record<string, any>;
+  const area = root.chrome?.storage?.local;
+  return area?.get && area?.set ? area : null;
+};
+
+/** Save a local snapshot and return its timestamp. */
+export const persistConfig = async (): Promise<string | null> => {
+  const area = localArea();
+  if (!area) return null;
+
+  const savedAt = new Date().toISOString();
+  const values = Object.fromEntries(DB.prefix(db, ""));
+  await area.set({ [PERSIST_KEY]: { savedAt, values } });
+  return savedAt;
+};
+
+/** Timestamp of the local snapshot, if one has been saved. */
+export const readPersistedConfig = async (): Promise<string | null> => {
+  const area = localArea();
+  if (!area) return null;
+
+  const result = await area.get(PERSIST_KEY);
+  return result[PERSIST_KEY]?.savedAt ?? null;
+};
+
+/** Restore the local snapshot, including data stripped from file exports. */
+export const restorePersistedConfig = async (): Promise<string | null> => {
+  const area = localArea();
+  if (!area) return null;
+
+  const result = await area.get(PERSIST_KEY);
+  const snapshot = result[PERSIST_KEY];
+  if (!snapshot?.values) return null;
+
+  clear(db);
+  for (const [key, value] of Object.entries(snapshot.values))
+    DB.put(db, key as any, value as any);
+  return snapshot.savedAt;
+};
+
 /** Reset the database */
 export const resetStore = (): void => {
   clear(db);

@@ -1,4 +1,5 @@
 import { relocateLinksWidget } from "./migrations/linksPosition";
+import { reorderTopWidgets } from "./migrations/topWidgetOrder";
 
 /**
  * Startup migrations.
@@ -11,4 +12,5 @@ import { relocateLinksWidget } from "./migrations/linksPosition";
  */
 export const migrate = async (): Promise<void> => {
   relocateLinksWidget();
+  reorderTopWidgets();
 };

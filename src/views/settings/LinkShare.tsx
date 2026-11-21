@@ -147,6 +147,9 @@ const LinkShare: React.FC = () => {
 
       <div className="settings">
         <p className="info">无需账号；密钥只保存在本机，私钥不上传。</p>
+        <p className="info">
+          临时局域网：双击仓库根目录「一键启动分享服务.bat」，填入窗口显示的地址。
+        </p>
 
         <label>
           中转服务地址

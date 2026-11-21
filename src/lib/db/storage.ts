@@ -156,6 +156,10 @@ export const extension = async (
   const handleError = (message: string) => (err: unknown) => {
     Stream.publish(errors, mapError(message, err));
   };
+  // Chromium storage writes are asynchronous. Serialising them keeps a rapid
+  // sequence of widget edits in the order the user made them, so a late write
+  // cannot be overtaken by an older one when the tab closes.
+  let writes: Promise<void> = Promise.resolve();
   DB.listen(
     db,
     batch((changes) => {
@@ -185,12 +189,12 @@ export const extension = async (
           deletes.push(partKey(fullKey, index));
       }
 
-      storageArea
-        .set(updates)
-        .catch(handleError("Cannot write updates to storage"));
-      storageArea
-        .remove(deletes)
-        .catch(handleError("Cannot write deletes to storage"));
+      writes = writes
+        .then(async () => {
+          if (Object.keys(updates).length > 0) await storageArea.set(updates);
+          if (deletes.length > 0) await storageArea.remove(deletes);
+        })
+        .catch(handleError("Cannot save changes to storage"));
     }),
   );
 

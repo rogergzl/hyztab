@@ -14,6 +14,10 @@ $cell-gap: 0.3em
     display: inline-flex
     flex-direction: column
     gap: 0.4em
+    // The frame is authored in em. Cap that em by viewport height so the grid
+    // never climbs into the clock/search band on short laptop screens. A
+    // smaller widget size set in the sidebar still wins via min().
+    font-size: #{"min(1em, clamp(15px, calc(4.12vh - 14.7px), 24px))"}
     // The grid is anchored to the bottom of the page; this lifts it clear of
     // the edge so the space above and below the frame end up about equal.
     margin-bottom: 2rem

@@ -1,5 +1,7 @@
 import { DB, Storage } from "../lib";
 import { defaultLocale } from "../locales";
+import { defaultData as linksDefaultData } from "../plugins/widgets/links/types";
+import { defaultData as searchDefaultData } from "../plugins/widgets/search/types";
 import { DEFAULT_GRID, LinksGrid } from "./linksGrid";
 import type { ProxyNode } from "../lib/linkProxy";
 import type { LinkShareConfig } from "../lib/linkShare";
@@ -105,8 +107,9 @@ const initData: State = {
   linkProxyNodes: [],
   /** Empty by default: sharing stays inert until a relay and keys are set. */
   linkShare: { serviceUrl: "", identities: [] },
-  // Clock and greeting sit at the top of the page, leaving the lower half to
-  // the quick links grid.
+  // Fresh installs open with the four widgets users actually keep, stacked as
+  // clock → greeting → search → quick links. Existing profiles are never
+  // changed here; initData is only the parent snapshot for new stores/resets.
   "widget/default-time": {
     id: "default-time",
     key: "widget/time",
@@ -122,6 +125,27 @@ const initData: State = {
     display: {
       position: "topCentre",
     },
+  },
+  "widget/default-search": {
+    id: "default-search",
+    key: "widget/search",
+    order: 2,
+    display: {
+      position: "topCentre",
+    },
+  },
+  "widget/default-links": {
+    id: "default-links",
+    key: "widget/links",
+    order: 3,
+    display: {
+      position: "bottomCentre",
+    },
+  },
+  "data/default-search": { ...searchDefaultData },
+  "data/default-links": {
+    ...linksDefaultData,
+    links: linksDefaultData.links.map((link) => ({ ...link })),
   },
   focus: false,
   locale: defaultLocale,
