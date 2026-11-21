@@ -67,31 +67,79 @@ npm run build:chromium        # 输出 dist/chromium/
 
 **2. 标签分享中转（可选）**
 
-```bash
-npm run share-server          # 零依赖，默认 127.0.0.1:8787，数据存本地 share-data/
+标签分享需要一个中转服务器（扩展本身不建服务器）。两种选择：
+
+**(a) 简易版：Docker 一条命令（推荐长期/公网使用）**
+
+镜像已在 Docker Hub 公开：**`lindagao/huayuzhu-relay-node:1.0.0`**
+（<https://hub.docker.com/r/lindagao/huayuzhu-relay-node>）
+
+`docker-compose.yml`：
+
+```yaml
+services:
+  relay-node:
+    image: lindagao/huayuzhu-relay-node:1.0.0
+    container_name: huayuzhu-relay-node
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      RELAY_HOST: "0.0.0.0"
+      RELAY_PORT: "8787"
+      RELAY_DATA_DIR: "/app/data"
+      RELAY_ADMIN_TOKEN: "换成你自己的强令牌"   # 必改
+      RELAY_BASE_PATH: ""
+      RELAY_PROXY_TOKEN: "false"
+      RELAY_ALLOW_PRIVATE: "true"
+      RELAY_MAX_LOGS: "5000"
+      TZ: "Asia/Shanghai"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8787/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 ```
 
-把打印的地址填入扩展「标签分享」设置即可。临时局域网分享需把监听地址改为 `0.0.0.0`；跨公网建议用下面的 Linux 转发节点。
-
-**3. Linux 服务器部署（公开 Docker 镜像）**
-
-转发节点把 HTTP 正向代理与标签分享中转合并在同一地址，镜像已发布到 Docker Hub：
-
 ```bash
-docker pull lindagao/huayuzhu-relay-node:1.0.0
 mkdir -p ./data
-docker run -d --name huayuzhu-relay-node --restart unless-stopped \
-  -p 8787:8787 -v "$(pwd)/data:/app/data" \
-  -e RELAY_ADMIN_TOKEN='换成你自己的强令牌' \
-  -e RELAY_HOST=0.0.0.0 -e RELAY_PORT=8787 -e RELAY_DATA_DIR=/app/data \
-  -e TZ=Asia/Shanghai \
-  lindagao/huayuzhu-relay-node:1.0.0
+docker compose up -d          # 或 docker pull 后 docker run（见下）
 ```
 
-浏览器打开 `http://<服务器IP>:8787/admin`（令牌登录）即可管理；同一地址填入扩展的
-「代理节点」与「标签分享」服务地址。Web 界面可调整代理模式与私网访问策略，
-数据（分享 / 日志 / 设置）都在 `./data`，重建容器不丢。镜像为 `linux/amd64`，
-ARM 机器需自行构建。仓库地址：<https://hub.docker.com/r/lindagao/huayuzhu-relay-node>
+管理界面 `http://<服务器IP>:8787/admin`（令牌登录）。
+
+**(b) 临时局域网：本机直跑，零依赖**
+
+```bash
+npm run share-server          # 默认 127.0.0.1:8787，数据存本地 share-data/
+```
+
+把打印的地址填入扩展「标签分享」设置即可；临时局域网分享需把监听地址改为 `0.0.0.0`。
+
+> 简易 `docker run` 等价命令（不用 compose 时）：
+> ```bash
+> docker run -d --name huayuzhu-relay-node --restart unless-stopped \
+>   -p 8787:8787 -v "$(pwd)/data:/app/data" \
+>   -e RELAY_ADMIN_TOKEN='换成你自己的强令牌' \
+>   -e RELAY_HOST=0.0.0.0 -e RELAY_PORT=8787 -e RELAY_DATA_DIR=/app/data \
+>   -e TZ=Asia/Shanghai lindagao/huayuzhu-relay-node:1.0.0
+> ```
+
+**3. Linux 服务器：转发节点（代理 + 分享合一的完整版）**
+
+同一个镜像还兼作**浏览器代理节点**：把它填进扩展「代理节点」，即可按域名走这台服务器的
+HTTP 正向代理；与分享中转共用 `8787` 端口。部署命令与上面相同，部署后：
+
+- 管理界面 `http://<服务器IP>:8787/admin` 可调整代理模式、私网访问策略、查看分享/代理日志；
+- 扩展「代理节点」与「标签分享」都填同一个地址；
+- 数据（分享 / 密钥 / 日志 / 设置）都在 `./data`，重建容器不丢；
+- 镜像为 `linux/amd64`，ARM 机器需自行构建。
+
+> 注意：浏览器 PAC 无法携带令牌，所以 `RELAY_PROXY_TOKEN` 保持 `false` 才能让扩展直连；
+> 只做外网中转时把 `RELAY_ALLOW_PRIVATE` 设为 `false`，防止被当作内网探测跳板。
 
 **4. 测试**
 
