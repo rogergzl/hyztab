@@ -24,6 +24,20 @@
 
 书签文件夹仅含链接名称与网址。
 
+## 仓库结构
+
+| 路径 | 说明 |
+| --- | --- |
+| `src/` | 扩展源码（组件插件在 `src/plugins/`，数据中间层在 `src/db/` 与 `src/lib/`） |
+| `target/` | 各平台 HTML / manifest 模板与图标；构建时自动复制 |
+| `server/link-share-server.js` | 零依赖标签分享中转服务（`npm run share-server`） |
+| `deploy/relay-node/` | Linux 转发节点源码包（正向代理 + 分享中转 + Web 管理界面 + 日志） |
+| `deploy/deploy.sh` | 独立交互式部署脚本；配置 / 数据 / compose 写在脚本所在目录 |
+| `deploy/huayuzhu-relay-offline.tar.gz` | 离线部署包（预构建 Docker 镜像 + 脚本 + 说明） |
+| `keys/chromium-pub.b64` | 固定扩展 ID 用的公钥（私钥不入库） |
+
+> 本仓库仅跟踪跨平台源码与部署脚本；Windows 一键编译、一键启动等本地便利脚本不上传。
+
 ## 优点
 
 - 扩展 ID 固定：`ahikgnldomceknpfnkdcfhcghfiodbdp`
@@ -38,13 +52,42 @@
 
 ## 快速开始
 
-1. 双击 `快捷编译.bat`，生成文件夹版 `dist/chromium/` 与压缩包 `dist/huayuzhu-chromium.zip`。
-2. 在 Edge / Chrome 扩展页开启「开发人员模式」，选择「加载已解压的扩展程序」，指向 `dist/chromium/`。
-3. 临时局域网分享：双击根目录 `一键启动分享服务.bat`，用窗口打印的地址连接；长期/跨公网使用可自托管服务：`npm run share-server`，默认监听 `127.0.0.1:8787`，数据保存在本地 `share-data/`。
-4. Linux 服务器长期部署（带 Web 管理界面 + 日志）：用 `deploy/relay-node/` 转发节点包，`cp .env.example .env` 后设置 `RELAY_ADMIN_TOKEN`，再 `docker compose up -d --build`；浏览器打开 `http://<服务器IP>:8787/admin`，同一地址填入扩展的「代理节点」与「标签分享」服务地址。详见该目录 `README.md`。
-5. **离线 / 内网隔离服务器**：用 `deploy/huayuzhu-relay-offline.tar.gz`（含预构建 Docker 镜像与独立部署脚本，目标机器无需联网/编译）。解压后运行 `./deploy.sh`，它交互配置、自动探测环境并推荐部署方式（离网 tar / docker run / compose / 直接 Node）。`deploy/deploy.sh` 是同一份脚本，也可单独拷到任意目录使用：配置、数据、compose 全部写在它所在的 `./` 下。
+需要 Node.js 18+。首次使用先 `npm install`。
 
-> Edge / Chrome 不能直接拖入 zip 安装。zip 仅用于备份或分发；开发安装请始终指向 `dist/chromium/` 文件夹。
+**1. 本地构建并安装扩展**
+
+```bash
+npm install
+npm run build:chromium        # 输出 dist/chromium/
+```
+
+在 Edge / Chrome 扩展页开启「开发人员模式」→「加载已解压的扩展程序」→ 指向 `dist/chromium/`。
+
+> Edge / Chrome 不能直接拖入 zip 安装。zip 仅用于备份或分发，开发安装请始终指向 `dist/chromium/` 文件夹。
+> Windows 下如需一键编译 zip，可自行在项目根目录放一个调用上面命令的 `.bat`；此类便利脚本不随仓库分发。
+
+**2. 标签分享中转（可选）**
+
+```bash
+npm run share-server          # 零依赖，默认 127.0.0.1:8787，数据存本地 share-data/
+```
+
+把打印的地址填入扩展「标签分享」设置即可。临时局域网分享需把监听地址改为 `0.0.0.0`；跨公网建议用下面的 Linux 转发节点。
+
+**3. Linux 服务器部署（带 Web 管理界面 + 日志）**
+
+转发节点把 HTTP 正向代理与标签分享中转合并在同一地址。两种部署方式：
+
+- **有网 / 可构建**：用 `deploy/relay-node/`，`cp .env.example .env` 设置 `RELAY_ADMIN_TOKEN` 后 `docker compose up -d --build`。
+- **离线 / 内网隔离**：用 `deploy/huayuzhu-relay-offline.tar.gz`（含预构建镜像与独立脚本，目标机无需联网、无需 Node、无需编译）。解压后 `chmod +x deploy.sh && ./deploy.sh`，脚本交互配置、自动探测环境并推荐部署方式（离网 tar / docker run / compose / 直接 Node）。
+
+`deploy/deploy.sh` 是同一份独立脚本，也可单独拷到任意目录使用：配置、数据、compose 全部写在它所在的 `./` 下。部署完成后浏览器打开 `http://<服务器IP>:8787/admin`，同一地址填入扩展的「代理节点」与「标签分享」服务地址。详见 `deploy/relay-node/README.md`。
+
+**4. 测试**
+
+```bash
+npm test                       # tsc + jest
+```
 
 ## 已知问题
 
@@ -54,7 +97,7 @@
 ## 合规性声明
 
 本项目由上游项目 **Tabliss**（[`joelshepherd/tabliss`](https://github.com/joelshepherd/tabliss)）二改，
-原作与修改部分均以 **GPL-3.0** 授权。本仓库为**修改版**，最近修改 2026-11-21。
+原作与修改部分均以 **GPL-3.0** 授权。本仓库为**修改版**，最近修改 2026-11-22。
 
 - [`LICENSE.txt`](LICENSE.txt) 为 GPL-3.0 全文，须原样保留、不得删改。
 - 上游未附带版权声明；据实保留其项目名称与仓库地址，显示名更改不改变归属。
