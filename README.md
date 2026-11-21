@@ -71,7 +71,7 @@ npm run build:chromium        # 输出 dist/chromium/
 
 **(a) 简易版：Docker 一条命令（推荐长期/公网使用）**
 
-镜像已在 Docker Hub 公开：**`lindagao/huayuzhu-relay-node:1.0.1`**
+镜像已在 Docker Hub 公开：**`lindagao/huayuzhu-relay-node:1.0.2`**
 （<https://hub.docker.com/r/lindagao/huayuzhu-relay-node>）
 
 `docker-compose.yml`：
@@ -79,7 +79,7 @@ npm run build:chromium        # 输出 dist/chromium/
 ```yaml
 services:
   relay-node:
-    image: lindagao/huayuzhu-relay-node:1.0.1
+    image: lindagao/huayuzhu-relay-node:1.0.2
     container_name: huayuzhu-relay-node
     restart: unless-stopped
     ports:
@@ -111,6 +111,15 @@ docker compose up -d          # 或 docker pull 后 docker run（见下）
 
 管理界面 `http://<服务器IP>:8787/admin`（令牌登录）。
 
+> **只拿到镜像也能用**：启动时只需一个 `RELAY_ADMIN_TOKEN`，其余配置
+> （代理是否需令牌、是否允许访问私网、日志保留条数、管理令牌）都能在面板里改，
+> 立即生效并写入 `data/settings.json`，重启后仍然保留。端口与反向代理子路径
+> 属于监听/路由参数，需在启动容器时用环境变量指定，面板中只读展示。
+>
+> **密钥在扩展端创建**（私钥始终不出浏览器），服务端只保存公钥与指纹；
+> 面板「密钥」页可对每个已注册身份做单密钥管理：改名、禁用/启用、删除
+> （删除会一并撤销它发布的分享）。
+
 **(b) 临时局域网：本机直跑，零依赖**
 
 ```bash
@@ -125,7 +134,7 @@ npm run share-server          # 默认 127.0.0.1:8787，数据存本地 share-da
 >   -p 8787:8787 -v "$(pwd)/data:/app/data" \
 >   -e RELAY_ADMIN_TOKEN='换成你自己的强令牌' \
 >   -e RELAY_HOST=0.0.0.0 -e RELAY_PORT=8787 -e RELAY_DATA_DIR=/app/data \
->   -e TZ=Asia/Shanghai lindagao/huayuzhu-relay-node:1.0.1
+>   -e TZ=Asia/Shanghai lindagao/huayuzhu-relay-node:1.0.2
 > ```
 
 **3. Linux 服务器：转发节点（代理 + 分享合一的完整版）**
