@@ -315,10 +315,8 @@ const LinkShare: React.FC = () => {
       <h4>标签分享</h4>
 
       <div className="settings">
-        <p className="info">无需账号；密钥只保存在本机，私钥不上传。</p>
         <p className="info">
-          只有<strong>同一分组</strong>的用户才能互相看到、互相分享；未设置分组的人归属
-          「未分组」，未分组之间也互通。
+          无需账号，私钥只存本机。同一分组内才能互传；不填分组则与其它未分组用户互通。
         </p>
 
         <label>
@@ -355,7 +353,7 @@ const LinkShare: React.FC = () => {
           <input
             type="text"
             value={newGroupName}
-            placeholder="例如：家里"
+            placeholder="例如：家里；同名 + 同密码即同组"
             onChange={(event) => setNewGroupName(event.target.value)}
           />
         </label>
@@ -365,7 +363,7 @@ const LinkShare: React.FC = () => {
             <input
               type="password"
               value={newGroupPassword}
-              placeholder="至少 4 位，仅用于加入，不会保存"
+              placeholder="至少 4 位，不保存"
               onChange={(event) => setNewGroupPassword(event.target.value)}
             />
           </label>
@@ -451,12 +449,15 @@ const LinkShare: React.FC = () => {
         ))}
 
         <h4>自动接受</h4>
+        <p className="info">勾选后自动收下，未勾选的在下方手动添加。</p>
         <p className="info">
-          开启后，来自指定用户或指定分组的分享会直接写入快速链接；未开启的需要在下方手动添加。
+          当前分组「{signingIdentities[0]?.groupName || "未分组"}」· 同组成员{" "}
+          {otherPeers.length} 人（不含自己）
         </p>
+
         {otherPeers.length === 0 ? (
           <p className="info">
-            同组内还没有其他人。把「分组名 + 密码」告诉对方，Ta 加入后这里就会出现。
+            还没有同组其他人。把「分组名 + 密码」告诉对方，Ta 加入后这里就会出现。
           </p>
         ) : (
           otherPeers.map((peer) => (

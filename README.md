@@ -3,7 +3,7 @@
 一款可自定义的 **Chrome / Edge 新标签页扩展**：把新标签页变成一个可以自由摆放的工作台。
 
 - 主页：<https://aphqsia.com/>
-- 当前版本：`2.7.5`
+- 当前版本：`2.7.6`
 - 开源协议：GPL-3.0（基于 [Tabliss](https://github.com/joelshepherd/tabliss) 二次开发）
 - 扩展 ID：`ahikgnldomceknpfnkdcfhcghfiodbdp`（固定，重装不丢数据）
 
@@ -143,13 +143,13 @@ npm run build:chromium        # 产物在 dist/chromium/
 ## 可选：中转服务
 
 只有用「标签分享」才需要，不部署不影响其它功能。镜像已发布在 Docker Hub：
-`lindagao/huayuzhu-relay-node:1.0.4`（[仓库](https://hub.docker.com/r/lindagao/huayuzhu-relay-node)）
+`lindagao/huayuzhu-relay-node:1.0.5`（[仓库](https://hub.docker.com/r/lindagao/huayuzhu-relay-node)）
 
 ```bash
 docker run -d --name huayuzhu-relay-node --restart unless-stopped \
   -p 8787:8787 -v "$(pwd)/data:/app/data" \
   -e RELAY_ADMIN_TOKEN='换成你的强随机令牌' \
-  lindagao/huayuzhu-relay-node:1.0.4
+  lindagao/huayuzhu-relay-node:1.0.5
 ```
 
 管理界面 `http://<服务器IP>:8787/admin`（令牌登录）；把 `http://<服务器IP>:8787/`
