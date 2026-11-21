@@ -1,6 +1,8 @@
 import { DB, Storage } from "../lib";
 import { defaultLocale } from "../locales";
 import { DEFAULT_GRID, LinksGrid } from "./linksGrid";
+import type { ProxyNode } from "../lib/linkProxy";
+import type { LinkShareConfig } from "../lib/linkShare";
 
 /**
  * Database state
@@ -19,6 +21,10 @@ export interface State {
    * go direct. Kept page level because the PAC it feeds is browser wide.
    */
   linkProxyFallback: string;
+  /** Reusable named proxy addresses offered in every quick link editor. */
+  linkProxyNodes: ProxyNode[];
+  /** Account-free link sharing configuration, including local private keys. */
+  linkShare: LinkShareConfig;
   /** Widget state */
   [key: `widget/${string}`]: WidgetState | null;
   /** Plugin data */
@@ -95,6 +101,10 @@ const initData: State = {
    * a network that was not using a proxy anyway.
    */
   linkProxyFallback: "",
+  /** Empty by default: no node is offered until the user adds one. */
+  linkProxyNodes: [],
+  /** Empty by default: sharing stays inert until a relay and keys are set. */
+  linkShare: { serviceUrl: "", identities: [] },
   // Clock and greeting sit at the top of the page, leaving the lower half to
   // the quick links grid.
   "widget/default-time": {

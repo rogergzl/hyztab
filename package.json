@@ -1,6 +1,6 @@
 {
   "name": "huayuzhu-tab",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "license": "GPL-3.0",
   "private": true,
   "engines": {
@@ -16,6 +16,7 @@
     "dev:firefox": "BUILD_TARGET=firefox webpack --watch",
     "dev:web": "BUILD_TARGET=web webpack serve",
     "test": "tsc -p tsconfig.test.json && jest",
+    "share-server": "node ./server/link-share-server.js",
     "translations": "node ./scripts/translations.js"
   },
   "dependencies": {

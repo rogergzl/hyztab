@@ -27,6 +27,12 @@ export type ProxyRule = {
 
 /** Per-link proxy settings stored alongside the link's other fields. */
 export type LinkProxy = {
-  /** The proxy address the user typed, kept verbatim for the editor. */
-  address: string;
+  /** Legacy inline address, kept for links saved before node pools existed. */
+  address?: string;
+  /**
+   * Id of a named node from the page level pool. When present and still found,
+   * the node's address is used instead so renaming/retargeting a node updates
+   * every link that picked it.
+   */
+  nodeId?: string;
 };

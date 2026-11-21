@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { DB } from "../lib";
 import { LinksGrid, clampLinksGrid } from "./linksGrid";
+import { sanitizeShareConfig } from "./linkShare";
 import migrateFrom2 from "./migrations/migrate2";
 import { selectWidgets } from "./select";
 import { cache, db, WidgetDisplay, WidgetPosition } from "./state";
@@ -126,10 +127,14 @@ export const importStore = (dump: any): void => {
 
 /** Export a database dump */
 export const exportStore = (): string => {
-  return JSON.stringify({
-    ...Object.fromEntries(DB.prefix(db, "")),
-    version: 3,
-  });
+  const values: Record<string, unknown> = Object.fromEntries(
+    DB.prefix(db, ""),
+  );
+  // A settings file may be handed to someone else. Keep public identity data
+  // for reference, but never include the private keys used for signing.
+  if ("linkShare" in values)
+    values.linkShare = sanitizeShareConfig(values.linkShare);
+  return JSON.stringify({ ...values, version: 3 });
 };
 
 /** Reset the database */

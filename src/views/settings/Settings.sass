@@ -98,7 +98,37 @@
             &:active
                 background: darken(#bdc3c7, 40%)
 
-    hr
+        .info
+        line-height: 1.45
+        margin-top: 0.5rem
+
+        &.is-error
+            color: #c0392b
+
+    .ShareIdentityRow
+        align-items: center
+        background: #f7f9fa
+        border-radius: 0.4rem
+        display: flex
+        gap: 0.5rem
+        justify-content: space-between
+        margin: 0.5rem 0
+        padding: 0.45rem 0.6rem
+
+        span
+            display: grid
+            min-width: 0
+
+        small
+            opacity: 0.6
+            overflow: hidden
+            text-overflow: ellipsis
+            white-space: nowrap
+
+        .button
+            flex: 0 0 auto
+
+hr
         border: 1px solid #ecf0f1
         margin: 1rem 0
 

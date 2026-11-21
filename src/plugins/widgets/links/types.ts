@@ -1,6 +1,7 @@
 import { API } from "../../types";
 import { DEFAULT_GRID } from "../../../db/linksGrid";
 import { LinkProxy } from "../../../lib/linkProxy";
+import { LinkShare } from "../../../lib/linkShare";
 
 /** Use the favicon fetched from the website itself. */
 export const ICON_FAVICON = "_favicon";
@@ -30,6 +31,8 @@ export type Link = {
   customIconId?: string;
   /** Optional per-host proxy routing, applied browser-wide via a PAC script. */
   proxy?: LinkProxy;
+  /** Metadata for a link published to or received from a sharing relay. */
+  share?: LinkShare;
 };
 
 export type Data = {

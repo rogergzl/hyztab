@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "花与竹标签",
   "short_name": "花与竹",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "一个漂亮、可自定义的新标签页，拥有多种背景和组件。",
   "homepage_url": "https://aphqsia.com/",
   "applications": {

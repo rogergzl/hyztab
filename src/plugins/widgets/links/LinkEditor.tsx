@@ -1,13 +1,24 @@
 import React, { FC, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { nanoid } from "nanoid";
 
+import { normalizeShareConfig } from "../../../db/linkShare";
 import { db } from "../../../db/state";
 import { useValue } from "../../../lib/db/react";
 import { fetchSiteTitle } from "../../../lib/siteTitle";
 import {
   isValidProxyAddress,
+  normalizeProxyNodes,
   proxySupported,
 } from "../../../lib/linkProxy";
+import {
+  deleteShare,
+  listIdentities,
+  normalizeServiceUrl,
+  publishShare,
+  PublicIdentity,
+  SharePayload,
+} from "../../../lib/linkShare";
 import LinkIcon from "./LinkIcon";
 import { ICON_CUSTOM, ICON_FAVICON, Link } from "./types";
 import {
@@ -51,8 +62,32 @@ const LinkEditor: FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [reading, setReading] = useState(false);
+  const [shareEnabled, setShareEnabled] = useState(Boolean(link.share));
+  const [shareOwner, setShareOwner] = useState(link.share?.ownerId ?? "");
+  const [shareRecipients, setShareRecipients] = useState<string[]>(
+    link.share?.recipients ?? [],
+  );
+  const [shareUsers, setShareUsers] = useState<PublicIdentity[]>([]);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const siteTitle = useValue(db, "siteTitle");
+  const nodes = normalizeProxyNodes(useValue(db, "linkProxyNodes"));
+  const shareConfig = normalizeShareConfig(useValue(db, "linkShare"));
+  const signingIdentities = shareConfig.identities.filter(
+    (identity) => identity.privateKey,
+  );
+  const ownerId = shareOwner || signingIdentities[0]?.id || "";
+  const owner = signingIdentities.find((identity) => identity.id === ownerId);
+  const proxy = draft.proxy;
+  const selectedNode =
+    proxy?.nodeId && nodes.find((node) => node.id === proxy.nodeId);
+  const proxyAddress = proxy
+    ? selectedNode
+      ? selectedNode.address
+      : proxy.address ?? ""
+    : "";
 
   // Latest values, so timers always read current state.
   const latest = useRef<Link>(link);
@@ -184,6 +219,111 @@ const LinkEditor: FC<Props> = ({
   const mode: IconMode = draft.icon === ICON_CUSTOM ? "custom" : "favicon";
   const domain = getDomain(draft.url);
   const canReach = hasUrl(draft);
+
+  let shareServiceUrl = "";
+  try {
+    shareServiceUrl = normalizeServiceUrl(shareConfig.serviceUrl);
+  } catch (e) {
+    // An empty or malformed value simply disables sharing UI actions; the
+    // settings panel owns the user-facing validation message.
+    void e;
+    shareServiceUrl = "";
+  }
+
+  const errorText = (e: unknown): string =>
+    e instanceof Error ? e.message : "操作失败";
+
+  useEffect(() => {
+    if (!shareEnabled || !shareServiceUrl) return;
+
+    let active = true;
+    listIdentities(shareServiceUrl)
+      .then((users) => {
+        if (active)
+          setShareUsers(users.filter((user) => user.fingerprint !== owner?.fingerprint));
+      })
+      .catch((e) => {
+        if (active) setShareError(errorText(e));
+      });
+    return () => {
+      active = false;
+    };
+    // The owner can change after identities load, so re-read the list then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareEnabled, shareServiceUrl, owner?.fingerprint]);
+
+  const publish = async () => {
+    setShareError(null);
+    setShareMessage(null);
+
+    if (!canReach) return setShareError("请先填写网址");
+    if (!shareServiceUrl) return setShareError("请先在侧边栏配置中转服务地址");
+    if (!owner) return setShareError("请选择一个有私钥的本地密钥");
+    if (shareRecipients.length === 0)
+      return setShareError("请至少选择一个接收用户");
+
+    setShareBusy(true);
+    try {
+      const address = proxy
+        ? selectedNode
+          ? selectedNode.address
+          : proxy.address
+        : undefined;
+      const payload: SharePayload = {
+        url: draft.url!,
+        name: draft.name,
+        shortName: draft.shortName,
+        // Uploaded icons are local IndexedDB data and cannot be shared.
+        icon: draft.icon === ICON_CUSTOM ? ICON_FAVICON : draft.icon,
+        proxy: address ? { address } : undefined,
+        updatedAt: Date.now(),
+      };
+      const id = draft.share?.shareId ?? nanoid(12);
+      const record = await publishShare(shareServiceUrl, owner, {
+        id,
+        recipients: shareRecipients,
+        payload,
+      });
+
+      change({
+        share: {
+          shareId: record.id,
+          serviceUrl: shareServiceUrl,
+          owner: owner.fingerprint,
+          ownerId: owner.id,
+          recipients: record.recipients,
+          recipient: draft.share?.recipient ?? owner.fingerprint,
+          updatedAt: record.updatedAt,
+        },
+      });
+      setShareMessage("已发布；对方添加后可在网格下方手动刷新");
+    } catch (e) {
+      setShareError(errorText(e));
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const unpublish = async () => {
+    if (!draft.share) return;
+    setShareError(null);
+    if (!shareServiceUrl || !owner) {
+      setShareError("无法连接中转服务，不能取消服务器上的分享");
+      return;
+    }
+
+    setShareBusy(true);
+    try {
+      await deleteShare(shareServiceUrl, owner, draft.share.shareId);
+      change({ share: undefined });
+      setShareEnabled(false);
+      setShareMessage("已取消分享");
+    } catch (e) {
+      setShareError(errorText(e));
+    } finally {
+      setShareBusy(false);
+    }
+  };
 
   // Portalled to <body>: the widget sits inside a transformed .Slot, and a
   // transformed ancestor becomes the containing block for fixed elements,
@@ -342,7 +482,10 @@ const LinkEditor: FC<Props> = ({
                   onChange={(event) =>
                     change({
                       proxy: event.target.checked
-                        ? { address: draft.proxy?.address ?? "" }
+                        ? draft.proxy ?? {
+                            nodeId: nodes[0]?.id,
+                            address: nodes.length > 0 ? undefined : "",
+                          }
                         : undefined,
                     })
                   }
@@ -350,28 +493,151 @@ const LinkEditor: FC<Props> = ({
                 <span className="FieldLabel">代理访问</span>
               </label>
 
-              {draft.proxy && (
+              {proxy && (
                 <>
-                  <input
-                    type="text"
-                    spellCheck={false}
-                    value={draft.proxy.address}
-                    placeholder="192.168.1.91:7893 或 socks5://127.0.0.1:1080"
+                  <select
+                    value={selectedNode ? selectedNode.id : "__custom"}
                     onChange={(event) =>
                       change({
-                        proxy: { address: event.target.value },
+                        proxy: {
+                          ...proxy,
+                          nodeId:
+                            event.target.value === "__custom"
+                              ? undefined
+                              : event.target.value,
+                        },
                       })
                     }
-                  />
+                  >
+                    {nodes.map((node) => (
+                      <option key={node.id} value={node.id}>
+                        {node.name} — {node.address}
+                      </option>
+                    ))}
+                    <option value="__custom">自定义地址</option>
+                  </select>
+
+                  {!selectedNode && (
+                    <input
+                      type="text"
+                      spellCheck={false}
+                      value={proxy.address ?? ""}
+                      placeholder="192.168.1.91:7893 或 socks5://127.0.0.1:1080"
+                      onChange={(event) =>
+                        change({
+                          proxy: { ...proxy, address: event.target.value },
+                        })
+                      }
+                    />
+                  )}
+
                   <small className="FieldHint">
-                    {draft.proxy.address &&
-                    !isValidProxyAddress(draft.proxy.address)
+                    {proxyAddress && !isValidProxyAddress(proxyAddress)
                       ? "地址格式不正确，需形如 主机:端口，支持 http / socks5 / socks4。"
                       : !proxySupported()
                         ? "当前浏览器不支持扩展设置代理（需 Chrome 或 Edge）。"
-                        : "访问此网址的域名时走该代理。其余网站由侧边栏「快速链接网格 → 代理兜底」决定，留空则直连。按域名生效，同域名的一切访问都会走该代理。"}
+                        : selectedNode
+                          ? "使用侧边栏配置的节点；修改节点地址后所有选用它的链接同步生效。"
+                          : "按域名生效。其余网站由侧边栏「代理兜底」决定，留空则直连。"}
                   </small>
                 </>
+              )}
+            </div>
+
+            <div className="Field Field--stacked">
+              <label className="ProxyToggle">
+                <input
+                  type="checkbox"
+                  checked={shareEnabled}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setShareEnabled(enabled);
+                    if (!enabled) change({ share: undefined });
+                  }}
+                />
+                <span className="FieldLabel">标签分享</span>
+              </label>
+
+              {shareEnabled && (
+                <div className="SharePanel">
+                  {!shareConfig.serviceUrl ? (
+                    <small className="FieldHint">
+                      请先在侧边栏配置中转服务地址与密钥。
+                    </small>
+                  ) : signingIdentities.length === 0 ? (
+                    <small className="FieldHint">
+                      请先在侧边栏生成带私钥的本地密钥。
+                    </small>
+                  ) : (
+                    <>
+                      <select
+                        value={ownerId}
+                        onChange={(event) => setShareOwner(event.target.value)}
+                      >
+                        {signingIdentities.map((identity) => (
+                          <option key={identity.id} value={identity.id}>
+                            {identity.name}（{identity.fingerprint.slice(0, 8)}）
+                          </option>
+                        ))}
+                      </select>
+
+                      <small className="FieldLabel">接收用户</small>
+                      <div className="ShareUserList">
+                        {shareUsers.length === 0 ? (
+                          <small className="FieldHint">暂无其他用户，或尚未连接中转服务。</small>
+                        ) : (
+                          shareUsers.map((user) => (
+                            <label key={user.fingerprint} className="ShareUser">
+                              <input
+                                type="checkbox"
+                                checked={shareRecipients.includes(user.fingerprint)}
+                                onChange={(event) =>
+                                  setShareRecipients((current) =>
+                                    event.target.checked
+                                      ? [...current, user.fingerprint]
+                                      : current.filter(
+                                          (item) => item !== user.fingerprint,
+                                        ),
+                                  )
+                                }
+                              />
+                              {user.name}
+                              <small>{user.fingerprint.slice(0, 8)}</small>
+                            </label>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="ShareActions">
+                        <button
+                          type="button"
+                          className="button button--primary"
+                          disabled={shareBusy}
+                          onClick={publish}
+                        >
+                          {draft.share ? "更新分享" : "发布分享"}
+                        </button>
+                        {draft.share && (
+                          <button
+                            type="button"
+                            className="button button--secondary"
+                            disabled={shareBusy}
+                            onClick={unpublish}
+                          >
+                            取消分享
+                          </button>
+                        )}
+                      </div>
+
+                      <small className="FieldHint">
+                        链接更新后需重新发布；对方在其网格下方点「刷新分享」获取新内容。
+                      </small>
+                    </>
+                  )}
+
+                  {shareError && <small className="is-error">{shareError}</small>}
+                  {shareMessage && <small className="FieldHint">{shareMessage}</small>}
+                </div>
               )}
             </div>
           </div>

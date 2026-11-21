@@ -3,8 +3,16 @@ import { nanoid } from "nanoid";
 
 import { useKeyPress, useSavedReducer, useToggle } from "../../../hooks";
 import { clampLinksGrid } from "../../../db/linksGrid";
+import {
+  normalizeShareConfig,
+  updateSharedLinks,
+} from "../../../db/linkShare";
 import { db } from "../../../db/state";
 import { useValue } from "../../../lib/db/react";
+import {
+  getShare,
+  normalizeServiceUrl,
+} from "../../../lib/linkShare";
 import { Icon } from "../../../views/shared";
 import Display from "./Display";
 import LinkEditor from "./LinkEditor";
@@ -50,10 +58,12 @@ const Links: FC<Props> = ({
 
   // Index of the link being configured, or null when the panel is shut.
   const [editing, setEditing] = useState<number | null>(null);
+  const [shareStatus, setShareStatus] = useState("");
 
   // The grid is a page level setting read from the store, so every links
   // widget on the new tab page shares one size.
   const grid = clampLinksGrid(useValue(db, "linksGrid"));
+  const shareConfig = normalizeShareConfig(useValue(db, "linkShare"));
   const bookmarkSync = useValue(db, "bookmarkSync");
   const size = perPage(grid);
   const pages = pageCount(data.links.length, size);
@@ -68,6 +78,58 @@ const Links: FC<Props> = ({
     [data, setData],
   );
   const dispatch = useSavedReducer(reducer, data.links, saveLinks);
+
+  /** Pull the latest payload for every share added from another person. */
+  const refreshShares = useCallback(async () => {
+    const shares = data.links
+      .map((link) => link.share)
+      .filter(
+        (share): share is NonNullable<typeof share> =>
+          Boolean(share) && share!.recipient !== share!.owner,
+      );
+    if (shares.length === 0) return;
+
+    setShareStatus("刷新中…");
+    const seen = new Set<string>();
+    let updated = 0;
+    let failed = 0;
+
+    for (const share of shares) {
+      const key = `${share.serviceUrl}|${share.shareId}|${share.recipient}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const identity = shareConfig.identities.find(
+        (item) => item.fingerprint === share.recipient && item.privateKey,
+      );
+      if (!identity) {
+        failed += 1;
+        continue;
+      }
+
+      try {
+        const record = await getShare(
+          normalizeServiceUrl(share.serviceUrl),
+          identity,
+          share.shareId,
+        );
+        updated += updateSharedLinks(share.shareId, record.payload);
+      } catch (e) {
+        void e;
+        failed += 1;
+      }
+    }
+
+    setShareStatus(
+      failed > 0
+        ? `已刷新 ${updated} 个，${failed} 个失败`
+        : `已刷新 ${updated} 个`,
+    );
+  }, [data.links, shareConfig.identities]);
+
+  const sharedCount = data.links.filter(
+    (link) => link.share && link.share.recipient !== link.share.owner,
+  ).length;
 
   // Links saved before ids existed get one once, so the bookmark sync can bind
   // a bookmark to the link itself rather than to its (changeable) name.
@@ -290,7 +352,21 @@ const Links: FC<Props> = ({
             count={pages}
             onChange={setPage}
             onExtend={extend}
-            extra={<SyncButton status={sync} />}
+            extra={
+              <>
+                <SyncButton status={sync} />
+                {sharedCount > 0 && (
+                  <button
+                    type="button"
+                    className="LinkPagerShare"
+                    title={shareStatus || "刷新分享"}
+                    onClick={refreshShares}
+                  >
+                    刷新分享
+                  </button>
+                )}
+              </>
+            }
           />
         </>
       ) : (

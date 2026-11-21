@@ -7,6 +7,7 @@ import {
   ProxySource,
 } from "../lib/linkProxy";
 import { DB } from "../lib";
+import { resolveProxyAddress, selectProxyNodes } from "./linkProxyNodes";
 import { db, WidgetState } from "./state";
 
 /**
@@ -38,7 +39,16 @@ export const selectAllLinks = (): ProxySource[] => {
 };
 
 /** The current proxy rules, derived from authoritative saved state. */
-export const selectProxyRules = (): ProxyRule[] => collectRules(selectAllLinks());
+export const selectProxyRules = (): ProxyRule[] => {
+  const nodes = selectProxyNodes();
+  const links: ProxySource[] = selectAllLinks().map((link) => ({
+    url: link.url,
+    proxy: link.proxy
+      ? { address: resolveProxyAddress(link.proxy, nodes) }
+      : undefined,
+  }));
+  return collectRules(links);
+};
 
 /**
  * The proxy used for hosts no link names, or null when there is none.
