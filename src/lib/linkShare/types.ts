@@ -12,6 +12,9 @@ export type PublicIdentity = {
   name: string;
   fingerprint: string;
   publicKey: JsonWebKey;
+  /** 手动分组：同一分组内才互相可见、可分享；null 表示「未分组」。 */
+  groupId?: string | null;
+  groupName?: string;
 };
 
 /** A local identity. `privateKey` is stripped from settings exports. */
@@ -28,6 +31,8 @@ export type SharePayload = {
   icon?: string;
   /** Resolved proxy address; node ids only make sense on the sender's device. */
   proxy?: { address?: string };
+  /** 是否随链接分享名称 / 图标 / 代理等显示配置；未勾选时只发网址。 */
+  withConfig?: boolean;
   updatedAt: number;
 };
 
@@ -41,6 +46,8 @@ export type LinkShare = {
   recipients: string[];
   /** Which local identity added this link; needed to authenticate a refresh. */
   recipient: string;
+  /** 接收方是否采纳了发布者的名称 / 图标 / 代理设置。 */
+  applyConfig?: boolean;
   updatedAt: number;
 };
 
@@ -48,18 +55,29 @@ export type LinkShare = {
 export type ShareRecord = {
   id: string;
   owner: string;
+  ownerName?: string;
+  /** 发布者所在分组名，用于「自动接受某分组」判断。 */
+  ownerGroup?: string;
   recipients: string[];
   payload: SharePayload;
   updatedAt: number;
+};
+
+/** 自动接受规则：命中用户指纹或分组名时不再需要手动确认。 */
+export type AutoAccept = {
+  users: string[];
+  groups: string[];
 };
 
 /** Page level sharing configuration. */
 export type LinkShareConfig = {
   serviceUrl: string;
   identities: ShareIdentity[];
+  autoAccept: AutoAccept;
 };
 
 export const emptyShareConfig = (): LinkShareConfig => ({
   serviceUrl: "",
   identities: [],
+  autoAccept: { users: [], groups: [] },
 });

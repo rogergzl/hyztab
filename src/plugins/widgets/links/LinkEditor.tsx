@@ -233,11 +233,22 @@ const LinkEditor: FC<Props> = ({
   const errorText = (e: unknown): string =>
     e instanceof Error ? e.message : "操作失败";
 
+  // 按分组归拢，界面上同组排在一起，避免一长条看不出归属。
+  const shareGroups = Array.from(
+    shareUsers.reduce((acc, user) => {
+      const key = user.groupName || "未分组";
+      const list = acc.get(key) ?? [];
+      list.push(user);
+      acc.set(key, list);
+      return acc;
+    }, new Map<string, PublicIdentity[]>()),
+  );
+
   useEffect(() => {
-    if (!shareEnabled || !shareServiceUrl) return;
+    if (!shareEnabled || !shareServiceUrl || !owner) return;
 
     let active = true;
-    listIdentities(shareServiceUrl)
+    listIdentities(shareServiceUrl, owner)
       .then((users) => {
         if (active)
           setShareUsers(users.filter((user) => user.fingerprint !== owner?.fingerprint));
@@ -269,6 +280,7 @@ const LinkEditor: FC<Props> = ({
           ? selectedNode.address
           : proxy.address
         : undefined;
+      // 总是把显示配置一起发出去；是否采纳由接收方在侧边栏决定。
       const payload: SharePayload = {
         url: draft.url!,
         name: draft.name,
@@ -276,6 +288,7 @@ const LinkEditor: FC<Props> = ({
         // Uploaded icons are local IndexedDB data and cannot be shared.
         icon: draft.icon === ICON_CUSTOM ? ICON_FAVICON : draft.icon,
         proxy: address ? { address } : undefined,
+        withConfig: true,
         updatedAt: Date.now(),
       };
       const id = draft.share?.shareId ?? nanoid(12);
@@ -570,41 +583,84 @@ const LinkEditor: FC<Props> = ({
                     </small>
                   ) : (
                     <>
-                      <select
-                        value={ownerId}
-                        onChange={(event) => setShareOwner(event.target.value)}
-                      >
-                        {signingIdentities.map((identity) => (
-                          <option key={identity.id} value={identity.id}>
-                            {identity.name}（{identity.fingerprint.slice(0, 8)}）
-                          </option>
-                        ))}
-                      </select>
+                      <label className="ShareField">
+                        <span className="FieldLabel">使用身份</span>
+                        <select
+                          value={ownerId}
+                          onChange={(event) => setShareOwner(event.target.value)}
+                        >
+                          {signingIdentities.map((identity) => (
+                            <option key={identity.id} value={identity.id}>
+                              {identity.name} · {identity.groupName || "未分组"}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-                      <small className="FieldLabel">接收用户</small>
-                      <div className="ShareUserList">
+                      <div className="ShareRecipients">
+                        <div className="ShareRecipientsHead">
+                          <span className="FieldLabel">接收用户</span>
+                          <small>
+                            已选 {shareRecipients.length} / {shareUsers.length}
+                          </small>
+                        </div>
+
                         {shareUsers.length === 0 ? (
-                          <small className="FieldHint">暂无其他用户，或尚未连接中转服务。</small>
+                          <small className="FieldHint">
+                            同组内还没有其他用户，或尚未连接中转服务。
+                          </small>
                         ) : (
-                          shareUsers.map((user) => (
-                            <label key={user.fingerprint} className="ShareUser">
-                              <input
-                                type="checkbox"
-                                checked={shareRecipients.includes(user.fingerprint)}
-                                onChange={(event) =>
-                                  setShareRecipients((current) =>
-                                    event.target.checked
-                                      ? [...current, user.fingerprint]
-                                      : current.filter(
-                                          (item) => item !== user.fingerprint,
-                                        ),
-                                  )
-                                }
-                              />
-                              {user.name}
-                              <small>{user.fingerprint.slice(0, 8)}</small>
-                            </label>
-                          ))
+                          shareGroups.map(([group, users]) => {
+                            const allSelected = users.every((user) =>
+                              shareRecipients.includes(user.fingerprint),
+                            );
+                            return (
+                              <div className="ShareGroup" key={group}>
+                                <div className="ShareGroupHead">
+                                  <strong>{group}</strong>
+                                  <button
+                                    type="button"
+                                    className="ShareGroupAll"
+                                    onClick={() =>
+                                      setShareRecipients((current) => {
+                                        const others = current.filter(
+                                          (item) =>
+                                            !users.some((u) => u.fingerprint === item),
+                                        );
+                                        return allSelected
+                                          ? others
+                                          : [
+                                              ...others,
+                                              ...users.map((u) => u.fingerprint),
+                                            ];
+                                      })
+                                    }
+                                  >
+                                    {allSelected ? "取消全选" : "全选"}
+                                  </button>
+                                </div>
+                                {users.map((user) => (
+                                  <label key={user.fingerprint} className="ShareUser">
+                                    <input
+                                      type="checkbox"
+                                      checked={shareRecipients.includes(user.fingerprint)}
+                                      onChange={(event) =>
+                                        setShareRecipients((current) =>
+                                          event.target.checked
+                                            ? [...current, user.fingerprint]
+                                            : current.filter(
+                                                (item) => item !== user.fingerprint,
+                                              ),
+                                        )
+                                      }
+                                    />
+                                    <span>{user.name}</span>
+                                    <small>{user.fingerprint.slice(0, 8)}</small>
+                                  </label>
+                                ))}
+                              </div>
+                            );
+                          })
                         )}
                       </div>
 

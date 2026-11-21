@@ -62,7 +62,10 @@ NBA 比分、文学钟、留言板、笑话、工时统计、IP 信息、自定�
 
 - **无需账号**：双方各自生成一对 P-256 密钥，服务端只存公钥
 - 私钥不出浏览器，设置导出文件里也不含私钥
-- 发布时选择接收者；对方核对指纹一致后才添加
+- **手动分组**：用「分组名 + 密码」划小圈子，只有同组用户能互相看见、互相分享
+- **接收方可选**：添加时决定是否采纳对方的名称、图标与代理设置，不勾选则只加网址
+- **自动接受**：可指定自动接受某位用户或某个分组的分享，其余仍在侧边栏手动确认
+- 删除密钥会同步向服务端注销，不会残留成多个同名用户
 - 更新后对方需手动刷新，不会自动推送
 - 需要一个中转服务（扩展本身不建服务器）；局域网临时用可 `npm run share-server`，
   长期或公网使用见下方[「可选：中转服务部署」](#可选中转服务部署)
@@ -134,7 +137,7 @@ npm run build:chromium        # 产物在 dist/chromium/
 标签分享需要一个中转服务（扩展本身不建服务器）。**不需要分享功能就跳过本节**，
 其它功能不受影响。
 
-镜像已发布在 Docker Hub：`lindagao/huayuzhu-relay-node:1.0.2`
+镜像已发布在 Docker Hub：`lindagao/huayuzhu-relay-node:1.0.3`
 （<https://hub.docker.com/r/lindagao/huayuzhu-relay-node>）
 
 ### 部署前准备
@@ -152,7 +155,7 @@ npm run build:chromium        # 产物在 dist/chromium/
 docker run -d --name huayuzhu-relay-node --restart unless-stopped \
   -p 8787:8787 -v "$(pwd)/data:/app/data" \
   -e RELAY_ADMIN_TOKEN='换成你的强随机令牌' \
-  lindagao/huayuzhu-relay-node:1.0.2
+  lindagao/huayuzhu-relay-node:1.0.3
 ```
 
 用 compose：
@@ -160,7 +163,7 @@ docker run -d --name huayuzhu-relay-node --restart unless-stopped \
 ```yaml
 services:
   relay-node:
-    image: lindagao/huayuzhu-relay-node:1.0.2
+    image: lindagao/huayuzhu-relay-node:1.0.3
     container_name: huayuzhu-relay-node
     restart: unless-stopped
     ports: ["8787:8787"]
@@ -190,6 +193,10 @@ mkdir -p ./data && docker compose up -d
 面板还能看概览、按类别/级别筛选日志、撤销任意分享。**密钥由扩展端生成**
 （私钥始终不出浏览器），服务端只存公钥与指纹，面板可对每个已注册身份改名 /
 禁用 / 删除，删除会连带撤销它发布的分享。
+
+**分组**在扩展端设置：新建密钥时填「分组名 + 密码」即创建分组，别人用相同名称与
+密码加入即可互传；密码用 scrypt 加盐哈希存盘，不保存明文。未设置分组的归入
+「未分组」，未分组之间互通。
 
 > 内网无外网时也可用离线包部署（作者自用，不随仓库分发）；镜像为 `linux/amd64`，
 > ARM 机器需自行构建。签名协议、端口复用等实现约定见 [`MANUAL.md`](MANUAL.md)。

@@ -106,7 +106,11 @@ const initData: State = {
   /** Empty by default: no node is offered until the user adds one. */
   linkProxyNodes: [],
   /** Empty by default: sharing stays inert until a relay and keys are set. */
-  linkShare: { serviceUrl: "", identities: [] },
+  linkShare: {
+    serviceUrl: "",
+    identities: [],
+    autoAccept: { users: [], groups: [] },
+  },
   // Fresh installs open with the four widgets users actually keep, stacked as
   // clock → greeting → search → quick links. Existing profiles are never
   // changed here; initData is only the parent snapshot for new stores/resets.

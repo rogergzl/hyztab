@@ -32,7 +32,7 @@ const isJwk = (value: unknown): value is JsonWebKey =>
 
 const normalizeIdentity = (value: unknown): ShareIdentity | null => {
   if (!isRecord(value)) return null;
-  const { id, name, fingerprint, publicKey, privateKey } = value;
+  const { id, name, fingerprint, publicKey, privateKey, groupId, groupName } = value;
   if (
     typeof id !== "string" ||
     typeof fingerprint !== "string" ||
@@ -45,6 +45,8 @@ const normalizeIdentity = (value: unknown): ShareIdentity | null => {
     name: typeof name === "string" && name.trim() ? name.trim() : "未命名密钥",
     fingerprint,
     publicKey,
+    ...(typeof groupId === "string" && groupId ? { groupId } : {}),
+    ...(typeof groupName === "string" && groupName ? { groupName } : {}),
     ...(isJwk(privateKey) ? { privateKey } : {}),
   };
 };
@@ -64,10 +66,18 @@ export const normalizeShareConfig = (value: unknown): LinkShareConfig => {
     }
   }
 
+  const rawAuto = isRecord(raw.autoAccept) ? raw.autoAccept : {};
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
   return {
     serviceUrl:
       typeof raw.serviceUrl === "string" ? raw.serviceUrl.trim() : "",
     identities,
+    autoAccept: {
+      users: strings(rawAuto.users),
+      groups: strings(rawAuto.groups),
+    },
   };
 };
 
@@ -92,6 +102,32 @@ export const addShareIdentity = (identity: ShareIdentity): boolean => {
     identities: [...config.identities, identity],
   });
   return true;
+};
+
+/** 更新自动接受规则。 */
+export const setAutoAccept = (next: { users?: string[]; groups?: string[] }): void => {
+  const config = selectShareConfig();
+  DB.put(db, "linkShare", {
+    ...config,
+    autoAccept: {
+      users: next.users ?? config.autoAccept.users,
+      groups: next.groups ?? config.autoAccept.groups,
+    },
+  });
+};
+
+/** 注册/改分组后，把服务端返回的分组信息写回本地身份。 */
+export const updateIdentityMeta = (
+  id: string,
+  meta: { name?: string; groupId?: string | null; groupName?: string },
+): void => {
+  const config = selectShareConfig();
+  DB.put(db, "linkShare", {
+    ...config,
+    identities: config.identities.map((identity) =>
+      identity.id === id ? { ...identity, ...meta } : identity,
+    ),
+  });
 };
 
 /** Remove a local identity. Shares already added to links stay untouched. */
@@ -144,18 +180,35 @@ const payloadToLink = (
   base: StoredLink,
   payload: SharePayload,
   share: LinkShare,
-): StoredLink => ({
-  ...base,
-  id: typeof base.id === "string" ? base.id : nanoid(12),
-  url: payload.url,
-  name: payload.name,
-  shortName: payload.shortName,
-  icon: payload.icon ?? "_favicon",
-  // A proxy node id has no meaning on the receiver's device; only the
-  // resolved address is shared, and it stays an ordinary inline address.
-  proxy: payload.proxy?.address ? { address: payload.proxy.address } : undefined,
-  share,
-});
+): StoredLink => {
+  const baseLink: StoredLink = {
+    ...base,
+    id: typeof base.id === "string" ? base.id : nanoid(12),
+    url: payload.url,
+    share,
+  };
+
+  // 接收方选择「只添加网址」时，不采纳对方的名称 / 图标 / 代理。
+  if (share.applyConfig === false) {
+    return {
+      ...baseLink,
+      name: undefined,
+      shortName: undefined,
+      icon: "_favicon",
+      proxy: undefined,
+    };
+  }
+
+  return {
+    ...baseLink,
+    name: payload.name,
+    shortName: payload.shortName,
+    icon: payload.icon ?? "_favicon",
+    // A proxy node id has no meaning on the receiver's device; only the
+    // resolved address is shared, and it stays an ordinary inline address.
+    proxy: payload.proxy?.address ? { address: payload.proxy.address } : undefined,
+  };
+};
 
 /**
  * Add a received share to the first quick links widget, filling the first free
@@ -164,6 +217,7 @@ const payloadToLink = (
 export const addSharedLink = (
   payload: SharePayload,
   share: LinkShare,
+  applyConfig = true,
 ): boolean => {
   const widgets = linksWidgets();
   if (widgets.length === 0) return false;
@@ -172,7 +226,10 @@ export const addSharedLink = (
   const links = [...stored.links!];
   const index = links.findIndex((link) => !hasUrl(link));
   const target = index < 0 ? links.length : index;
-  links[target] = payloadToLink(links[target] ?? {}, payload, share);
+  links[target] = payloadToLink(links[target] ?? {}, payload, {
+    ...share,
+    applyConfig,
+  });
 
   DB.put(db, key, { ...stored, links });
   return true;
@@ -198,6 +255,7 @@ export const updateSharedLinks = (
       changed += 1;
       return payloadToLink(link, payload, {
         ...link.share,
+        applyConfig: link.share.applyConfig !== false,
         updatedAt: payload.updatedAt,
       });
     });

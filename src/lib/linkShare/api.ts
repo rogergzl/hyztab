@@ -97,17 +97,39 @@ const send = async <T>(
 export const registerIdentity = (
   serviceUrl: string,
   identity: ShareIdentity,
+  group?: { name: string; password: string },
 ): Promise<PublicIdentity> =>
   send<PublicIdentity>(serviceUrl, "POST", "identities", {
     name: identity.name,
     publicKey: identity.publicKey,
+    // 只有显式传分组时才带上，避免把已有用户踢回「未分组」。
+    ...(group ? { groupName: group.name, groupPassword: group.password } : {}),
   }, identity);
 
-/** Everyone's public identities, for the recipient picker. */
+/**
+ * 同组的公开身份，供接收者选择。
+ *
+ * 服务端会按分组过滤，所以必须带签名身份——这也顺带证明了请求者确实是
+ * 该组的成员。
+ */
 export const listIdentities = (
   serviceUrl: string,
+  viewer: ShareIdentity,
 ): Promise<PublicIdentity[]> =>
-  send<PublicIdentity[]>(serviceUrl, "GET", "identities");
+  send<PublicIdentity[]>(serviceUrl, "GET", "identities", undefined, viewer);
+
+/** 注销自己的身份（服务端会连带撤销它发布的分享）。 */
+export const deleteIdentity = (
+  serviceUrl: string,
+  identity: ShareIdentity,
+): Promise<{ ok: boolean; removedShares: number }> =>
+  send<{ ok: boolean; removedShares: number }>(
+    serviceUrl,
+    "DELETE",
+    "identities",
+    undefined,
+    identity,
+  );
 
 /** Create or replace a share. `id` is kept stable across edits. */
 export const publishShare = (

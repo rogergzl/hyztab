@@ -6,14 +6,19 @@ import {
   hasSharedLink,
   normalizeShareConfig,
   removeShareIdentity,
+  setAutoAccept,
   setShareServiceUrl,
+  updateIdentityMeta,
 } from "../../db/linkShare";
 import { db } from "../../db/state";
 import { useValue } from "../../lib/db/react";
 import {
+  deleteIdentity,
   generateIdentity,
+  listIdentities,
   listIncoming,
   normalizeServiceUrl,
+  PublicIdentity,
   registerIdentity,
   requestHostPermission,
   ShareIdentity,
@@ -28,14 +33,23 @@ const errorText = (e: unknown): string =>
 /**
  * Account-free link sharing settings.
  *
- * The relay address, named local key pairs and the list of shares addressed to
- * them all live here; individual links only carry the small metadata needed to
- * publish or refresh their payload.
+ * 分组只用于「谁能看见谁」：同一分组（或都未分组）之间才能互相分享。
+ * 分组密码只在加入时用一次，不落盘、不入同步。
  */
 const LinkShare: React.FC = () => {
   const config = normalizeShareConfig(useValue(db, "linkShare"));
   const [service, setService] = React.useState(config.serviceUrl);
   const [name, setName] = React.useState("");
+  const [newGroupName, setNewGroupName] = React.useState("");
+  const [newGroupPassword, setNewGroupPassword] = React.useState("");
+
+  // 每个身份单独设置分组
+  const [editingGroupOf, setEditingGroupOf] = React.useState<string | null>(null);
+  const [groupDraft, setGroupDraft] = React.useState({ name: "", password: "" });
+
+  const [peers, setPeers] = React.useState<PublicIdentity[]>([]);
+  // 手动添加时是否采纳对方的名称 / 图标 / 代理，默认采纳。
+  const [acceptConfig, setAcceptConfig] = React.useState<Record<string, boolean>>({});
   const [incoming, setIncoming] = React.useState<Incoming[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
@@ -44,8 +58,7 @@ const LinkShare: React.FC = () => {
   let serviceUrl = "";
   try {
     serviceUrl = normalizeServiceUrl(config.serviceUrl);
-  } catch (e) {
-    void e;
+  } catch {
     serviceUrl = "";
   }
 
@@ -55,6 +68,34 @@ const LinkShare: React.FC = () => {
   const identityKey = signingIdentities
     .map((identity) => identity.fingerprint)
     .join(",");
+
+  const [autoUsers, setAutoUsers] = React.useState<string[]>(
+    config.autoAccept.users,
+  );
+  const [autoGroups, setAutoGroups] = React.useState<string[]>(
+    config.autoAccept.groups,
+  );
+
+  const loadPeers = React.useCallback(async () => {
+    if (!serviceUrl || signingIdentities.length === 0) {
+      setPeers([]);
+      return;
+    }
+    try {
+      const lists = await Promise.all(
+        signingIdentities.map((identity) =>
+          listIdentities(serviceUrl, identity).catch(() => [] as PublicIdentity[]),
+        ),
+      );
+      const merged = new Map<string, PublicIdentity>();
+      for (const list of lists)
+        for (const item of list) merged.set(item.fingerprint, item);
+      setPeers(Array.from(merged.values()));
+    } catch (e) {
+      setError(errorText(e));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceUrl, identityKey]);
 
   const loadIncoming = React.useCallback(async () => {
     if (!serviceUrl || signingIdentities.length === 0) {
@@ -71,19 +112,45 @@ const LinkShare: React.FC = () => {
           return shares.map((share): Incoming => ({ share, identity }));
         }),
       );
-      setIncoming(batches.flat());
+      const all = batches.flat();
+      setIncoming(all);
+
+      // 自动接受：发布者在白名单，或发布者所在分组在白名单。
+      let autoAdded = 0;
+      for (const entry of all) {
+        const { share, identity } = entry;
+        const accepted =
+          autoUsers.includes(share.owner) ||
+          (share.ownerGroup ? autoGroups.includes(share.ownerGroup) : false);
+        if (!accepted || hasSharedLink(share.id)) continue;
+        const ok = addSharedLink(
+          share.payload,
+          {
+            shareId: share.id,
+            serviceUrl,
+            owner: share.owner,
+            recipients: share.recipients,
+            recipient: identity.fingerprint,
+            applyConfig: true,
+            updatedAt: share.updatedAt,
+          },
+          true,
+        );
+        if (ok) autoAdded += 1;
+      }
+      if (autoAdded > 0) setMessage(`已自动接受 ${autoAdded} 条分享`);
     } catch (e) {
       setError(errorText(e));
     } finally {
       setLoading(false);
     }
-    // identityKey is the stable dependency for the identity array contents.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceUrl, identityKey]);
+  }, [serviceUrl, identityKey, autoUsers.join(","), autoGroups.join(",")]);
 
   React.useEffect(() => {
-    loadIncoming();
-  }, [loadIncoming]);
+    void loadPeers();
+    void loadIncoming();
+  }, [loadPeers, loadIncoming]);
 
   const connect = async () => {
     setError(null);
@@ -110,11 +177,24 @@ const LinkShare: React.FC = () => {
     setLoading(true);
     try {
       const identity = await generateIdentity(name);
-      await registerIdentity(serviceUrl, identity);
-      if (!addShareIdentity(identity))
+      const group = newGroupName.trim()
+        ? { name: newGroupName.trim(), password: newGroupPassword }
+        : undefined;
+      const registered = await registerIdentity(serviceUrl, identity, group);
+      const stored: ShareIdentity = {
+        ...identity,
+        groupId: registered.groupId ?? undefined,
+        groupName: registered.groupName,
+      };
+      if (!addShareIdentity(stored))
         throw new Error("该密钥已存在，无需重复生成");
       setName("");
-      setMessage(`密钥「${identity.name}」已创建`);
+      setNewGroupName("");
+      setNewGroupPassword("");
+      setMessage(
+        `密钥「${identity.name}」已创建，分组：${registered.groupName ?? "未分组"}`,
+      );
+      void loadPeers();
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -122,7 +202,55 @@ const LinkShare: React.FC = () => {
     }
   };
 
-  const add = (entry: Incoming) => {
+  const saveGroup = async (identity: ShareIdentity) => {
+    setError(null);
+    setMessage(null);
+    if (!serviceUrl) return setError("请先连接中转服务");
+    if (!groupDraft.name.trim()) return setError("请填写分组名");
+    if (groupDraft.password.length < 4) return setError("分组密码至少 4 位");
+
+    setLoading(true);
+    try {
+      const registered = await registerIdentity(serviceUrl, identity, {
+        name: groupDraft.name.trim(),
+        password: groupDraft.password,
+      });
+      updateIdentityMeta(identity.id, {
+        groupId: registered.groupId ?? null,
+        groupName: registered.groupName,
+      });
+      setEditingGroupOf(null);
+      setGroupDraft({ name: "", password: "" });
+      setMessage(`已加入分组「${registered.groupName ?? "未分组"}」`);
+      void loadPeers();
+      void loadIncoming();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeIdentity = async (identity: ShareIdentity) => {
+    if (
+      !confirm(
+        `删除密钥「${identity.name}」？会同时从服务端注销并撤销它发布的分享。`,
+      )
+    )
+      return;
+    // 先注销服务端，失败也继续删本地，避免残留造成「同一用户出现多个」。
+    if (serviceUrl && identity.privateKey) {
+      try {
+        await deleteIdentity(serviceUrl, identity);
+      } catch (e) {
+        setError(`服务端注销失败：${errorText(e)}`);
+      }
+    }
+    removeShareIdentity(identity.id);
+    void loadPeers();
+  };
+
+  const add = (entry: Incoming, applyConfig: boolean) => {
     setError(null);
     const { share, identity } = entry;
     if (hasSharedLink(share.id)) {
@@ -130,16 +258,51 @@ const LinkShare: React.FC = () => {
       return;
     }
 
-    const ok = addSharedLink(share.payload, {
-      shareId: share.id,
-      serviceUrl,
-      owner: share.owner,
-      recipients: share.recipients,
-      recipient: identity.fingerprint,
-      updatedAt: share.updatedAt,
-    });
-    setMessage(ok ? "已添加到快速链接" : "未找到可写入的快速链接组件");
+    const ok = addSharedLink(
+      share.payload,
+      {
+        shareId: share.id,
+        serviceUrl,
+        owner: share.owner,
+        recipients: share.recipients,
+        recipient: identity.fingerprint,
+        applyConfig,
+        updatedAt: share.updatedAt,
+      },
+      applyConfig,
+    );
+    setMessage(
+      ok
+        ? applyConfig
+          ? "已添加（含对方的名称/图标/代理）"
+          : "已添加（仅网址）"
+        : "未找到可写入的快速链接组件",
+    );
   };
+
+  const toggleAutoUser = (fingerprint: string, on: boolean) => {
+    const next = on
+      ? [...autoUsers, fingerprint]
+      : autoUsers.filter((item) => item !== fingerprint);
+    setAutoUsers(next);
+    setAutoAccept({ users: next });
+  };
+
+  const toggleAutoGroup = (group: string, on: boolean) => {
+    const next = on
+      ? [...autoGroups, group]
+      : autoGroups.filter((item) => item !== group);
+    setAutoGroups(next);
+    setAutoAccept({ groups: next });
+  };
+
+  const peerGroups = Array.from(
+    new Set(
+      peers
+        .map((peer) => peer.groupName)
+        .filter((group): group is string => Boolean(group)),
+    ),
+  );
 
   return (
     <div className="Widget">
@@ -148,7 +311,8 @@ const LinkShare: React.FC = () => {
       <div className="settings">
         <p className="info">无需账号；密钥只保存在本机，私钥不上传。</p>
         <p className="info">
-          临时局域网：双击仓库根目录「一键启动分享服务.bat」，填入窗口显示的地址。
+          只有<strong>同一分组</strong>的用户才能互相看到、互相分享；未设置分组的人归属
+          「未分组」，未分组之间也互通。
         </p>
 
         <label>
@@ -170,6 +334,7 @@ const LinkShare: React.FC = () => {
           连接
         </button>
 
+        <h4>新建密钥</h4>
         <label>
           密钥名称
           <input
@@ -179,6 +344,26 @@ const LinkShare: React.FC = () => {
             onChange={(event) => setName(event.target.value)}
           />
         </label>
+        <label>
+          分组名（可留空）
+          <input
+            type="text"
+            value={newGroupName}
+            placeholder="例如：家里"
+            onChange={(event) => setNewGroupName(event.target.value)}
+          />
+        </label>
+        {newGroupName.trim() && (
+          <label>
+            分组密码
+            <input
+              type="password"
+              value={newGroupPassword}
+              placeholder="至少 4 位，仅用于加入，不会保存"
+              onChange={(event) => setNewGroupPassword(event.target.value)}
+            />
+          </label>
+        )}
         <button
           type="button"
           className="button button--secondary"
@@ -188,21 +373,118 @@ const LinkShare: React.FC = () => {
           生成密钥
         </button>
 
+        <h4>本机密钥</h4>
+        {config.identities.length === 0 && <p className="info">还没有密钥。</p>}
         {config.identities.map((identity) => (
-          <div className="ShareIdentityRow" key={identity.id}>
-            <span>
-              <strong>{identity.name}</strong>
-              <small>{identity.fingerprint.slice(0, 12)}</small>
-            </span>
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={() => removeShareIdentity(identity.id)}
-            >
-              删除
-            </button>
+          <div key={identity.id}>
+            <div className="ShareIdentityRow">
+              <span>
+                <strong>{identity.name}</strong>
+                <small>
+                  {identity.fingerprint.slice(0, 12)} ·{" "}
+                  {identity.groupName || "未分组"}
+                </small>
+              </span>
+              <span className="ShareIdentityActions">
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  onClick={() => {
+                    setEditingGroupOf(
+                      editingGroupOf === identity.id ? null : identity.id,
+                    );
+                    setGroupDraft({ name: "", password: "" });
+                  }}
+                >
+                  分组
+                </button>
+                <button
+                  type="button"
+                  className="button button--danger"
+                  onClick={() => removeIdentity(identity)}
+                >
+                  删除
+                </button>
+              </span>
+            </div>
+            {editingGroupOf === identity.id && (
+              <div className="ShareGroupEditor">
+                <input
+                  type="text"
+                  value={groupDraft.name}
+                  placeholder="分组名"
+                  onChange={(event) =>
+                    setGroupDraft((d) => ({ ...d, name: event.target.value }))
+                  }
+                />
+                <input
+                  type="password"
+                  value={groupDraft.password}
+                  placeholder="分组密码"
+                  onChange={(event) =>
+                    setGroupDraft((d) => ({ ...d, password: event.target.value }))
+                  }
+                />
+                <button
+                  type="button"
+                  className="button button--primary"
+                  disabled={loading}
+                  onClick={() => saveGroup(identity)}
+                >
+                  加入
+                </button>
+              </div>
+            )}
           </div>
         ))}
+
+        <h4>自动接受</h4>
+        <p className="info">
+          开启后，来自指定用户或指定分组的分享会直接写入快速链接；未开启的需要在下方手动添加。
+        </p>
+        {peers.length === 0 ? (
+          <p className="info">暂无可选用户（同组内还没有其他人）。</p>
+        ) : (
+          peers
+            .filter((peer) =>
+              signingIdentities.every((self) => self.fingerprint !== peer.fingerprint),
+            )
+            .map((peer) => (
+              <label key={peer.fingerprint} className="ShareAutoRow">
+                <input
+                  type="checkbox"
+                  checked={autoUsers.includes(peer.fingerprint)}
+                  onChange={(event) =>
+                    toggleAutoUser(peer.fingerprint, event.target.checked)
+                  }
+                />
+                <span>
+                  {peer.name}
+                  <small>
+                    {peer.groupName || "未分组"} ·{" "}
+                    {peer.fingerprint.slice(0, 8)}
+                  </small>
+                </span>
+              </label>
+            ))
+        )}
+        {peerGroups.length > 0 && (
+          <>
+            <small className="info">按分组自动接受：</small>
+            {peerGroups.map((group) => (
+              <label key={group} className="ShareAutoRow">
+                <input
+                  type="checkbox"
+                  checked={autoGroups.includes(group)}
+                  onChange={(event) =>
+                    toggleAutoGroup(group, event.target.checked)
+                  }
+                />
+                <span>{group}</span>
+              </label>
+            ))}
+          </>
+        )}
 
         <h4>收到的分享</h4>
         <button
@@ -218,22 +500,45 @@ const LinkShare: React.FC = () => {
           <p className="info">暂无分享。</p>
         ) : (
           incoming.map((entry) => (
-            <div className="ShareIdentityRow" key={`${entry.identity.id}-${entry.share.id}`}>
+            <div
+              className="ShareIdentityRow"
+              key={`${entry.identity.id}-${entry.share.id}`}
+            >
               <span>
                 <strong>
                   {entry.share.payload.shortName ||
                     entry.share.payload.name ||
                     "未命名链接"}
                 </strong>
-                <small>{entry.share.payload.url}</small>
+                <small>
+                  {entry.share.ownerName || entry.share.owner.slice(0, 8)}
+                  {entry.share.ownerGroup ? ` · ${entry.share.ownerGroup}` : ""}
+                  {" · "}
+                  {entry.share.payload.url}
+                </small>
               </span>
-              <button
-                type="button"
-                className="button button--primary"
-                onClick={() => add(entry)}
-              >
-                添加
-              </button>
+              <span className="ShareAcceptActions">
+                <label className="ShareAcceptConfig">
+                  <input
+                    type="checkbox"
+                    checked={acceptConfig[entry.share.id] ?? true}
+                    onChange={(event) =>
+                      setAcceptConfig((current) => ({
+                        ...current,
+                        [entry.share.id]: event.target.checked,
+                      }))
+                    }
+                  />
+                  <span>应用对方配置</span>
+                </label>
+                <button
+                  type="button"
+                  className="button button--primary"
+                  onClick={() => add(entry, acceptConfig[entry.share.id] ?? true)}
+                >
+                  添加
+                </button>
+              </span>
             </div>
           ))
         )}

@@ -52,7 +52,14 @@ const Settings: React.FC = () => {
           if (event.target && event.target.result) {
             try {
               const state = JSON.parse(event.target.result as string);
-              importStore(state);
+              // 导入是整体覆盖：内部会先清空存储再写入，并补回本机私钥。
+              void importStore(state).catch((error: unknown) =>
+                alert(
+                  `导入失败：${
+                    error instanceof Error ? error.message : "未知错误"
+                  }`,
+                ),
+              );
             } catch (error) {
               alert(
                 `无效的导入文件：${

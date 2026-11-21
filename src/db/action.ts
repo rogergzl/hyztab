@@ -1,7 +1,11 @@
 import { nanoid } from "nanoid";
 import { DB } from "../lib";
 import { LinksGrid, clampLinksGrid } from "./linksGrid";
-import { sanitizeShareConfig } from "./linkShare";
+import {
+  normalizeShareConfig,
+  sanitizeShareConfig,
+  selectShareConfig,
+} from "./linkShare";
 import migrateFrom2 from "./migrations/migrate2";
 import { selectWidgets } from "./select";
 import { cache, db, WidgetDisplay, WidgetPosition } from "./state";
@@ -99,12 +103,42 @@ export const toggleFocus = () => {
 
 // Store actions
 
-/** Import database from a dump */
-export const importStore = (dump: any): void => {
-  // TODO: Add proper schema validation
+/**
+ * 清空扩展存储里本应用的所有键（含 `key#N` 分片）。
+ *
+ * 只清内存数据库不够：分片键不在逻辑键列表里，导入后旧分片可能还留在
+ * chrome.storage 上，下次启动拼回「新主键 + 旧分片」就会解析失败，
+ * 表现为配置被叠加、界面崩掉。
+ */
+const clearStoredItems = async (): Promise<void> => {
+  const area = (globalThis as Record<string, any>).browser?.storage?.sync;
+  if (!area?.get || !area?.remove) return;
+  const all: Record<string, unknown> = await area.get();
+  const keys = Object.keys(all).filter((key) =>
+    key.startsWith("huayuzhu/config/"),
+  );
+  if (keys.length > 0) await area.remove(keys);
+};
+
+/**
+ * Import database from a dump.
+ *
+ * 语义是**整体覆盖**：先清空存储与内存，再写入导入值；同时把本机原有的
+ * 分享私钥按指纹补回——导出文件按设计不含私钥，否则导入自己的备份会把
+ * 分享密钥变成「只有公钥」的废状态。
+ */
+export const importStore = async (dump: any): Promise<void> => {
   if (typeof dump !== "object" || dump === null)
     throw new TypeError("Unexpected format");
 
+  const localPrivate = selectShareConfig()
+    .identities.filter((identity) => identity.privateKey)
+    .map((identity) => ({
+      fingerprint: identity.fingerprint,
+      privateKey: identity.privateKey!,
+    }));
+
+  await clearStoredItems();
   resetStore();
   if ("backgrounds" in dump) {
     // Version 2 config
@@ -123,6 +157,22 @@ export const importStore = (dump: any): void => {
   }
   // @ts-ignore
   Object.entries(dump).forEach(([key, val]) => DB.put(db, key, val));
+
+  // 把本机私钥补回同指纹的身份
+  if (localPrivate.length > 0) {
+    const imported = normalizeShareConfig(DB.get(db, "linkShare"));
+    if (imported.identities.length > 0) {
+      DB.put(db, "linkShare", {
+        ...imported,
+        identities: imported.identities.map((identity) => {
+          const found = localPrivate.find(
+            (item) => item.fingerprint === identity.fingerprint,
+          );
+          return found ? { ...identity, privateKey: found.privateKey } : identity;
+        }),
+      });
+    }
+  }
 };
 
 /** Export a database dump */
