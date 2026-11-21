@@ -6,7 +6,7 @@
 它把新标签页变成一个可自由摆放的工作台：行列可调的快速链接网格、时间 / 问候 / 搜索等
 15 个组件、按域名路由的代理节点池、无需账号的标签分享、书签备份与离线教程。
 配套的自托管转发节点把 HTTP 正向代理与分享中转合并在同一个地址，带 Web 管理界面和日志；
-另提供离网 Docker 镜像包，内网服务器无需联网即可部署。
+镜像已发布到 Docker Hub，内网服务器拉取即可部署。
 
 ## 项目内容
 
@@ -16,7 +16,7 @@
 | 名称与图标 | 短名称、完整名称；站点 favicon 或本地上传；可选读取站点 `<title>` |
 | 代理访问 | 可配置多个默认代理节点；每个链接选择节点或自定义地址（http / socks5 / socks4）；按域名经 PAC 路由；其余网站可设兜底代理，留空则直连 |
 | 书签文件夹 | 书签栏「标签页备份书签，请勿删除」，默认开启；镜像链接名称与网址；删除项手动同步 |
-| 标签分享 | 配置自有 HTTP 中转与具名密钥后，可将链接发布给指定用户；对方校验指纹后一键添加，更新后手动刷新；无账号、私钥不上传；附一键启动临时中转脚本与 Linux 转发节点 Docker 部署包（自带 Web 管理界面与日志） |
+| 标签分享 | 配置自有 HTTP 中转与具名密钥后，可将链接发布给指定用户；对方校验指纹后一键添加，更新后手动刷新；无账号、私钥不上传；配套零依赖中转服务与公开转发节点镜像（自带 Web 管理界面与日志） |
 | 背景 | Bing 每日壁纸、随机动图、纯色、渐变、自定义上传 |
 | 页面组件 | 15 个组件插件（时钟、问候语、搜索、待办、笔记、天气、GitHub、NBA、文学钟、留言、笑话、工时、IP 信息等），可摆放与缩放；全新安装自上而下为时钟、问候语、搜索框、快速链接，搜索默认 Bing |
 | 数据保存 | 配置 → `chrome.storage.sync`（自动分片）；自定义图标 → IndexedDB；快速链接 → 书签文件夹；整套设置 → 导入 / 导出；侧边栏「持久化配置」可另存/恢复本机快照（含分享私钥） |
@@ -31,12 +31,11 @@
 | `src/` | 扩展源码（组件插件在 `src/plugins/`，数据中间层在 `src/db/` 与 `src/lib/`） |
 | `target/` | 各平台 HTML / manifest 模板与图标；构建时自动复制 |
 | `server/link-share-server.js` | 零依赖标签分享中转服务（`npm run share-server`） |
-| `deploy/relay-node/` | Linux 转发节点源码包（正向代理 + 分享中转 + Web 管理界面 + 日志） |
-| `deploy/deploy.sh` | 独立交互式部署脚本；配置 / 数据 / compose 写在脚本所在目录 |
-| `deploy/huayuzhu-relay-offline.tar.gz` | 离线部署包（预构建 Docker 镜像 + 脚本 + 说明） |
 | `keys/chromium-pub.b64` | 固定扩展 ID 用的公钥（私钥不入库） |
 
-> 本仓库仅跟踪跨平台源码与部署脚本；Windows 一键编译、一键启动等本地便利脚本不上传。
+> 本仓库只跟踪扩展源码与零依赖中转服务。转发节点服务端（源码 / 部署脚本 / 离线镜像包）
+> 仅作者自用、不随源码公开；Windows 一键编译等本地便利脚本同样不上传。
+> 需要服务端的可直接用下方 Docker Hub 公开镜像自行部署。
 
 ## 优点
 
@@ -48,7 +47,7 @@
 - 代理为浏览器级 PAC 按域名路由；无规则时不接管网络，可设兜底代理避免覆盖系统代理；节点池支持一次配置、多处复用
 - 书签同步默认开启，只删自有书签，删除需手动确认
 - 标签分享无需账号：ECDSA 签名 + 指纹校验，私钥不进设置导出文件；中转服务零依赖、可自托管
-- 提供 Linux 转发节点部署包：一个地址兼具正向代理与分享中转，Docker Compose 一条命令启动，带令牌保护的 Web 管理界面与分享 / 代理日志
+- 提供 Linux 转发节点 Docker 镜像（`lindagao/huayuzhu-relay-node`，公开）：一个地址兼具正向代理与分享中转，带令牌保护的 Web 管理界面与分享 / 代理日志
 
 ## 快速开始
 
@@ -74,14 +73,25 @@ npm run share-server          # 零依赖，默认 127.0.0.1:8787，数据存本
 
 把打印的地址填入扩展「标签分享」设置即可。临时局域网分享需把监听地址改为 `0.0.0.0`；跨公网建议用下面的 Linux 转发节点。
 
-**3. Linux 服务器部署（带 Web 管理界面 + 日志）**
+**3. Linux 服务器部署（公开 Docker 镜像）**
 
-转发节点把 HTTP 正向代理与标签分享中转合并在同一地址。两种部署方式：
+转发节点把 HTTP 正向代理与标签分享中转合并在同一地址，镜像已发布到 Docker Hub：
 
-- **有网 / 可构建**：用 `deploy/relay-node/`，`cp .env.example .env` 设置 `RELAY_ADMIN_TOKEN` 后 `docker compose up -d --build`。
-- **离线 / 内网隔离**：用 `deploy/huayuzhu-relay-offline.tar.gz`（含预构建镜像与独立脚本，目标机无需联网、无需 Node、无需编译）。解压后 `chmod +x deploy.sh && ./deploy.sh`，脚本交互配置、自动探测环境并推荐部署方式（离网 tar / docker run / compose / 直接 Node）。
+```bash
+docker pull lindagao/huayuzhu-relay-node:1.0.0
+mkdir -p ./data
+docker run -d --name huayuzhu-relay-node --restart unless-stopped \
+  -p 8787:8787 -v "$(pwd)/data:/app/data" \
+  -e RELAY_ADMIN_TOKEN='换成你自己的强令牌' \
+  -e RELAY_HOST=0.0.0.0 -e RELAY_PORT=8787 -e RELAY_DATA_DIR=/app/data \
+  -e TZ=Asia/Shanghai \
+  lindagao/huayuzhu-relay-node:1.0.0
+```
 
-`deploy/deploy.sh` 是同一份独立脚本，也可单独拷到任意目录使用：配置、数据、compose 全部写在它所在的 `./` 下。部署完成后浏览器打开 `http://<服务器IP>:8787/admin`，同一地址填入扩展的「代理节点」与「标签分享」服务地址。详见 `deploy/relay-node/README.md`。
+浏览器打开 `http://<服务器IP>:8787/admin`（令牌登录）即可管理；同一地址填入扩展的
+「代理节点」与「标签分享」服务地址。Web 界面可调整代理模式与私网访问策略，
+数据（分享 / 日志 / 设置）都在 `./data`，重建容器不丢。镜像为 `linux/amd64`，
+ARM 机器需自行构建。仓库地址：<https://hub.docker.com/r/lindagao/huayuzhu-relay-node>
 
 **4. 测试**
 
