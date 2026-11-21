@@ -71,7 +71,7 @@ npm run build:chromium        # 输出 dist/chromium/
 
 **(a) 简易版：Docker 一条命令（推荐长期/公网使用）**
 
-镜像已在 Docker Hub 公开：**`lindagao/huayuzhu-relay-node:1.0.0`**
+镜像已在 Docker Hub 公开：**`lindagao/huayuzhu-relay-node:1.0.1`**
 （<https://hub.docker.com/r/lindagao/huayuzhu-relay-node>）
 
 `docker-compose.yml`：
@@ -79,7 +79,7 @@ npm run build:chromium        # 输出 dist/chromium/
 ```yaml
 services:
   relay-node:
-    image: lindagao/huayuzhu-relay-node:1.0.0
+    image: lindagao/huayuzhu-relay-node:1.0.1
     container_name: huayuzhu-relay-node
     restart: unless-stopped
     ports:
@@ -125,7 +125,7 @@ npm run share-server          # 默认 127.0.0.1:8787，数据存本地 share-da
 >   -p 8787:8787 -v "$(pwd)/data:/app/data" \
 >   -e RELAY_ADMIN_TOKEN='换成你自己的强令牌' \
 >   -e RELAY_HOST=0.0.0.0 -e RELAY_PORT=8787 -e RELAY_DATA_DIR=/app/data \
->   -e TZ=Asia/Shanghai lindagao/huayuzhu-relay-node:1.0.0
+>   -e TZ=Asia/Shanghai lindagao/huayuzhu-relay-node:1.0.1
 > ```
 
 **3. Linux 服务器：转发节点（代理 + 分享合一的完整版）**
