@@ -41,15 +41,30 @@ for arg in "$@"; do
   esac
 done
 
+# 交互式判定：只要没显式 --non-interactive 就尝试提示。
+# 不能用 [ -t 0 ]：1Panel / SSH 网页终端里 stdin 常不是 tty，
+# 那样会把全部提示吞掉，用户只看到脚本直接结束。
 can_prompt() {
-  [ "$NONINTERACTIVE" = 0 ] && [ -t 0 ]
+  [ "$NONINTERACTIVE" = 0 ]
 }
 
+# 提示写 stderr，答案写 stdout（调用处用 $(prompt ...) 捕获）。
+# 两者分离是必须的：若提示走 stdout，会一起被捕获进变量，
+# 既看不见提示，又会把 "标签 [值]: 值" 塞进配置导致校验失败。
 prompt() {
   local label="$1" def="$2" answer=""
   if can_prompt; then
-    printf '%s [%s]: ' "$label" "$def"
-    IFS= read -r answer || answer=""
+    printf '%s [%s]: ' "$label" "$def" >&2
+    # 优先 stdin（SSH/网页终端带 pty）；否则安全尝试 /dev/tty，
+    # 打开失败时静默回退 stdin，避免 "-r 为真但打不开" 时刷报错。
+    if [ -t 0 ]; then
+      IFS= read -r answer || answer=""
+    elif exec 3</dev/tty 2>/dev/null; then
+      IFS= read -r answer <&3 || answer=""
+      exec 3<&- 2>/dev/null || true
+    else
+      IFS= read -r answer || answer=""
+    fi
   fi
   [ -n "$answer" ] || answer="$def"
   printf '%s' "$answer"
@@ -100,15 +115,18 @@ if [ -z "$TOKEN" ] || [ "$TOKEN" = "change-me-to-a-long-random-string" ]; then
   TOKEN=$(gen_token)
   echo "管理令牌为空或仍是模板值，已生成随机令牌；可直接回车使用。"
 fi
+# 默认值：优先沿用已有 .env，为空时用内置默认，确保提示里的方括号不为空
+def_or() { local v; v=$(conf "$1"); [ -n "$v" ] && printf '%s' "$v" || printf '%s' "$2"; }
+
 ADMIN_TOKEN=$(prompt "管理界面令牌" "$TOKEN")
-PORT=$(prompt "宿主机端口" "$(conf RELAY_PORT)"); PORT=${PORT:-8787}
-BASE_PATH=$(prompt "反向代理子路径（直连留空，如 /relay）" "$(conf RELAY_BASE_PATH)")
-PROXY_TOKEN=$(prompt_bool "代理访问是否也需要令牌（公网建议 y）" "$(conf RELAY_PROXY_TOKEN)")
-ALLOW_PRIVATE=$(prompt_bool "是否允许代理访问私网地址（只做中转建议 n）" "$(conf RELAY_ALLOW_PRIVATE)")
-MAX_LOGS=$(prompt "日志最多保留条数" "$(conf RELAY_MAX_LOGS)"); MAX_LOGS=${MAX_LOGS:-5000}
-IMAGE=$(prompt "Docker 镜像名" "$(conf RELAY_IMAGE)"); IMAGE=${IMAGE:-huayuzhu-relay-node:1.0.0}
-TAR=$(prompt "离网镜像 tar 路径（仅方式 1 用，可留空）" "$(conf RELAY_TAR)"); TAR=${TAR:-./image/huayuzhu-relay-node-image.tar}
-SRC_DIR=$(prompt "Node 源码目录（仅方式 4 用，可留空）" "$(conf RELAY_SRC_DIR)"); SRC_DIR=${SRC_DIR:-./}
+PORT=$(prompt "宿主机端口" "$(def_or RELAY_PORT 8787)")
+BASE_PATH=$(prompt "反向代理子路径（直连留空，如 /relay）" "$(def_or RELAY_BASE_PATH '')")
+PROXY_TOKEN=$(prompt_bool "代理访问是否也需要令牌（公网建议 y）" "$(def_or RELAY_PROXY_TOKEN false)")
+ALLOW_PRIVATE=$(prompt_bool "是否允许代理访问私网地址（只做中转建议 n）" "$(def_or RELAY_ALLOW_PRIVATE true)")
+MAX_LOGS=$(prompt "日志最多保留条数" "$(def_or RELAY_MAX_LOGS 5000)")
+IMAGE=$(prompt "Docker 镜像名" "$(def_or RELAY_IMAGE huayuzhu-relay-node:1.0.0)")
+TAR=$(prompt "离网镜像 tar 路径（仅方式 1 用，可留空）" "$(def_or RELAY_TAR ./image/huayuzhu-relay-node-image.tar)")
+SRC_DIR=$(prompt "Node 源码目录（仅方式 4 用，可留空）" "$(def_or RELAY_SRC_DIR ./)")
 
 case "$PORT" in
   ''|*[!0-9]*) echo "错误：端口必须是数字。" >&2; exit 1 ;;
