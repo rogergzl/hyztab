@@ -4,8 +4,13 @@ import { DB } from "../lib";
 import {
   LinkShare,
   LinkShareConfig,
+  ReconcileReport,
   ShareIdentity,
   SharePayload,
+  listIdentities,
+  normalizeServiceUrl,
+  reconcileIdentities,
+  registerIdentity,
   widgetDataKey,
 } from "../lib/linkShare";
 import { db, WidgetState } from "./state";
@@ -80,6 +85,31 @@ export const normalizeShareConfig = (value: unknown): LinkShareConfig => {
       groups: strings(rawAuto.groups),
     },
   };
+};
+
+/**
+ * 导入备份后与云端校对：把本地带私钥的密钥补注册，并列出差异。
+ *
+ * 只补注册、不删除——删除是破坏性操作，留给用户手动确认。
+ * 未配置服务或没有密钥时返回 null，调用方无需提示。
+ */
+export const reconcileShareIdentities = async (): Promise<ReconcileReport | null> => {
+  const config = selectShareConfig();
+  if (!config.serviceUrl || config.identities.length === 0) return null;
+
+  let serviceUrl: string;
+  try {
+    serviceUrl = normalizeServiceUrl(config.serviceUrl);
+  } catch {
+    return null;
+  }
+
+  return reconcileIdentities({
+    local: config.identities,
+    listPeers: (viewer) => listIdentities(serviceUrl, viewer),
+    // 不传分组：服务端会保留原有归属，只确保身份存在。
+    register: (identity) => registerIdentity(serviceUrl, identity),
+  });
 };
 
 /** Read the sharing configuration through the database middle layer. */

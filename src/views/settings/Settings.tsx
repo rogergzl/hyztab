@@ -1,6 +1,8 @@
 import React from "react";
 import { UiContext } from "../../contexts/ui";
 import { exportStore, importStore, resetStore } from "../../db/action";
+import { reconcileShareIdentities } from "../../db/linkShare";
+import { formatReconcileReport } from "../../lib/linkShare";
 import { useKeyPress } from "../../hooks";
 import Logo from "../shared/Logo";
 import Background from "./Background";
@@ -52,14 +54,22 @@ const Settings: React.FC = () => {
           if (event.target && event.target.result) {
             try {
               const state = JSON.parse(event.target.result as string);
-              // 导入是整体覆盖：内部会先清空存储再写入，并补回本机私钥。
-              void importStore(state).catch((error: unknown) =>
-                alert(
-                  `导入失败：${
-                    error instanceof Error ? error.message : "未知错误"
-                  }`,
-                ),
-              );
+              // 导入是整体覆盖：先清空存储再写入，并补回本机私钥；
+              // 随后与云端校对（只补注册，不做删除）。
+              void importStore(state)
+                .then(() => reconcileShareIdentities())
+                .then((report) => {
+                  if (!report) return;
+                  const text = formatReconcileReport(report);
+                  if (text) alert(text);
+                })
+                .catch((error: unknown) =>
+                  alert(
+                    `导入失败：${
+                      error instanceof Error ? error.message : "未知错误"
+                    }`,
+                  ),
+                );
             } catch (error) {
               alert(
                 `无效的导入文件：${
