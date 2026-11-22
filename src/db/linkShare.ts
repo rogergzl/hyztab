@@ -6,6 +6,7 @@ import {
   LinkShareConfig,
   ShareIdentity,
   SharePayload,
+  widgetDataKey,
 } from "../lib/linkShare";
 import { db, WidgetState } from "./state";
 
@@ -165,7 +166,9 @@ const linksWidgets = (): Array<[`data/${string}`, StoredLinks]> => {
 
   const result: Array<[`data/${string}`, StoredLinks]> = [];
   for (const [key] of widgets) {
-    const dataKey = key.slice("widget/".length) as `data/${string}`;
+    // 组件元数据键是 `widget/<id>`，数据键是 `data/<id>`；
+    // 换算错会让 DB.get 静默返回 undefined（见 widgets.ts 注释）。
+    const dataKey = widgetDataKey(key);
     const stored = DB.get(db, dataKey) as StoredLinks | undefined;
     if (stored && Array.isArray(stored.links))
       result.push([dataKey, stored]);
