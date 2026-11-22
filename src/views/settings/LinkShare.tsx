@@ -15,6 +15,8 @@ import { useValue } from "../../lib/db/react";
 import {
   deleteIdentity,
   excludeLocalIdentities,
+  readPeerCache,
+  writePeerCache,
   generateIdentity,
   listIdentities,
   listIncoming,
@@ -69,6 +71,11 @@ const LinkShare: React.FC = () => {
   const identityKey = signingIdentities
     .map((identity) => identity.fingerprint)
     .join(",");
+  /** 与链接编辑器共用的缓存 scope，需按本地全部密钥计算。 */
+  const localKey = config.identities
+    .map((identity) => identity.fingerprint)
+    .sort()
+    .join(",");
 
   const [autoUsers, setAutoUsers] = React.useState<string[]>(
     config.autoAccept.users,
@@ -82,21 +89,36 @@ const LinkShare: React.FC = () => {
       setPeers([]);
       return;
     }
+
+    // 先显示上次结果，避免「等加载完才能操作」。
+    const scope = `peers|${serviceUrl}|${localKey}`;
+    const cached = await readPeerCache(scope);
+    if (cached) setPeers(cached);
+
     try {
+      // 同一分组只需查一次：服务端返回的是整组，按身份逐次查是重复请求。
+      const byGroup = new Map<string, ShareIdentity>();
+      for (const identity of signingIdentities) {
+        const key = identity.groupId ?? identity.groupName ?? "未分组";
+        if (!byGroup.has(key)) byGroup.set(key, identity);
+      }
+
       const lists = await Promise.all(
-        signingIdentities.map((identity) =>
+        Array.from(byGroup.values()).map((identity) =>
           listIdentities(serviceUrl, identity).catch(() => [] as PublicIdentity[]),
         ),
       );
       const merged = new Map<string, PublicIdentity>();
       for (const list of lists)
         for (const item of list) merged.set(item.fingerprint, item);
-      setPeers(Array.from(merged.values()));
+      const next = Array.from(merged.values());
+      setPeers(next);
+      void writePeerCache(scope, next);
     } catch (e) {
       setError(errorText(e));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceUrl, identityKey]);
+  }, [serviceUrl, identityKey, localKey]);
 
   const loadIncoming = React.useCallback(async () => {
     if (!serviceUrl || signingIdentities.length === 0) {

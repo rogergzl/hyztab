@@ -17,6 +17,8 @@ import {
   normalizeServiceUrl,
   publishShare,
   PublicIdentity,
+  readPeerCache,
+  writePeerCache,
   SharePayload,
 } from "../../../lib/linkShare";
 import LinkIcon from "./LinkIcon";
@@ -258,13 +260,24 @@ const LinkEditor: FC<Props> = ({
     const local = new Set(
       shareConfig.identities.map((identity) => identity.fingerprint),
     );
-    listIdentities(shareServiceUrl, owner)
-      .then((users) => {
-        if (active) setShareUsers(users.filter((user) => !local.has(user.fingerprint)));
-      })
-      .catch((e) => {
+    const scope = `peers|${shareServiceUrl}|${localKey}`;
+
+    void (async () => {
+      // 先填缓存，打开面板即可选人；随后静默刷新。
+      const cached = await readPeerCache(scope);
+      if (active && cached)
+        setShareUsers(cached.filter((user) => !local.has(user.fingerprint)));
+
+      try {
+        const users = await listIdentities(shareServiceUrl, owner);
+        if (!active) return;
+        setShareUsers(users.filter((user) => !local.has(user.fingerprint)));
+        void writePeerCache(scope, users);
+      } catch (e) {
         if (active) setShareError(errorText(e));
-      });
+      }
+    })();
+
     return () => {
       active = false;
     };

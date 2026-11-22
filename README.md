@@ -3,7 +3,7 @@
 一款可自定义的 **Chrome / Edge 新标签页扩展**：把新标签页变成一个可以自由摆放的工作台。
 
 - 主页：<https://aphqsia.com/>
-- 当前版本：`2.7.11`
+- 当前版本：`2.7.12`
 - 开源协议：GPL-3.0（基于 [Tabliss](https://github.com/joelshepherd/tabliss) 二次开发）
 - 扩展 ID：`ahikgnldomceknpfnkdcfhcghfiodbdp`（固定，重装不丢数据）
 
