@@ -304,10 +304,14 @@ export const pauseSharedLink = (shareId: string): boolean => {
       owner: share.owner,
       serviceUrl: share.serviceUrl,
       recipient: share.recipient,
+      index,
       pausedAt: Date.now(),
     };
 
-    const links = stored.links!.filter((_, i) => i !== index);
+    // 只清空这一格，不移除数组元素：后面的链接保持原位，布局不受影响。
+    const links = stored.links!.map((item, i) =>
+      i === index ? (typeof item.id === "string" ? { id: item.id } : {}) : item,
+    );
     DB.put(db, key, { ...stored, links });
 
     const config = selectShareConfig();
@@ -326,6 +330,42 @@ export const resumeSharedLink = (shareId: string): boolean => {
   const config = selectShareConfig();
   const snapshot = config.pausedShares[shareId];
   if (!snapshot) return false;
+
+  // 原槽位还空着就写回原位，保持布局；否则由 addSharedLink 找空槽。
+  const widgets = linksWidgets();
+  const preferred = widgets[0];
+  const keepIndex =
+    typeof snapshot.index === "number" &&
+    preferred &&
+    snapshot.index < preferred[1].links!.length &&
+    !hasUrl(preferred[1].links![snapshot.index]);
+
+  if (keepIndex && preferred) {
+    const [key, stored] = preferred;
+    const links = [...stored.links!];
+    links[snapshot.index!] = payloadToLink(links[snapshot.index!] ?? {}, {
+      url: snapshot.url,
+      name: snapshot.name,
+      shortName: snapshot.shortName,
+      icon: snapshot.icon,
+      proxy: snapshot.proxy,
+      updatedAt: snapshot.pausedAt,
+    }, {
+      shareId,
+      serviceUrl: snapshot.serviceUrl,
+      owner: snapshot.owner,
+      recipients: [],
+      recipient: snapshot.recipient,
+      applyConfig: true,
+      updatedAt: snapshot.pausedAt,
+    });
+    DB.put(db, key, { ...stored, links });
+
+    const { [shareId]: _done, ...rest } = config.pausedShares;
+    void _done;
+    DB.put(db, "linkShare", { ...config, pausedShares: rest });
+    return true;
+  }
 
   const restored = addSharedLink(
     {
