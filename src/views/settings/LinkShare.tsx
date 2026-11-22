@@ -385,12 +385,19 @@ const LinkShare: React.FC = () => {
                 <small>
                   {identity.fingerprint.slice(0, 12)} ·{" "}
                   {identity.groupName || "未分组"}
+                  {identity.privateKey ? "" : " · 无私钥，无法用于分享"}
                 </small>
               </span>
               <span className="ShareIdentityActions">
                 <button
                   type="button"
                   className="button button--secondary"
+                  disabled={!identity.privateKey}
+                  title={
+                    identity.privateKey
+                      ? undefined
+                      : "该密钥没有私钥，无法向服务端声明分组"
+                  }
                   onClick={() => {
                     const opening = editingGroupOf !== identity.id;
                     setEditingGroupOf(opening ? identity.id : null);
@@ -449,7 +456,7 @@ const LinkShare: React.FC = () => {
         <h4>自动接受</h4>
         <p className="info">勾选后自动收下，未勾选的在下方手动添加。</p>
         <p className="info">
-          当前分组「{signingIdentities[0]?.groupName || "未分组"}」· 同组成员{" "}
+          当前分组「{config.identities[0]?.groupName || "未分组"}」· 同组成员{" "}
           {otherPeers.length} 人（不含自己）
         </p>
 

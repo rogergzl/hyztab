@@ -22,6 +22,8 @@ export type ReconcileReport = {
   onlyLocal: string[];
   /** 云端有、本地没有的（名字 + 短指纹）。 */
   onlyRemote: string[];
+  /** 本地身份中缺少私钥的数量（导入文件不含私钥）。 */
+  withoutPrivateKey?: number;
 };
 
 export type ReconcileDeps = {
@@ -42,6 +44,7 @@ export const reconcileIdentities = async (
     failed: [],
     onlyLocal: [],
     onlyRemote: [],
+    withoutPrivateKey: deps.local.filter((identity) => !identity.privateKey).length,
   };
 
   // 只有带私钥的身份才能签名，也只有它们能注册/查询。
@@ -97,6 +100,10 @@ export const formatReconcileReport = (report: ReconcileReport): string | null =>
     lines.push(`· 仅本地（云端未找到）：${report.onlyLocal.join("、")}`);
   if (report.onlyRemote.length)
     lines.push(`· 仅云端（本地没有，可能是其它设备）：${report.onlyRemote.join("、")}`);
+  if (report.withoutPrivateKey)
+    lines.push(
+      `· ${report.withoutPrivateKey} 个密钥没有私钥：导入的备份不含私钥，需重新生成才能用于分享`,
+    );
 
   if (lines.length === 1) return null;
   return lines.join("\n");

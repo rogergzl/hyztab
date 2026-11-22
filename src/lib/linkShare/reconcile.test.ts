@@ -119,6 +119,17 @@ describe("formatReconcileReport", () => {
     ).toBeNull();
   });
 
+  it("提示没有私钥的密钥数量", () => {
+    const text = formatReconcileReport({
+      registered: 0,
+      failed: [],
+      onlyLocal: [],
+      onlyRemote: [],
+      withoutPrivateKey: 2,
+    });
+    expect(text).toContain("2 个密钥没有私钥");
+  });
+
   it("有差异时给出可读摘要", () => {
     const text = formatReconcileReport({
       registered: 2,

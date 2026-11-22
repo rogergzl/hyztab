@@ -588,7 +588,7 @@ const LinkEditor: FC<Props> = ({
                     </small>
                   ) : signingIdentities.length === 0 ? (
                     <small className="FieldHint">
-                      请先在侧边栏生成带私钥的本地密钥。
+                      侧边栏的密钥缺少私钥（导入的备份不含私钥），无法发布；请重新生成一个密钥。
                     </small>
                   ) : (
                     <>
