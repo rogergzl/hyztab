@@ -268,6 +268,28 @@ export const addSharedLink = (
   return true;
 };
 
+/** 把某个分享对应的链接从网格中移除（槽位保留为空格）。返回移除数量。 */
+export const removeSharedLink = (shareId: string): number => {
+  let removed = 0;
+
+  for (const [key, stored] of linksWidgets()) {
+    const links = stored.links!;
+    let changed = 0;
+    const next = links.map((link) => {
+      if (link.share?.shareId !== shareId) return link;
+      changed += 1;
+      // 保留槽位与内部 id，只清空内容，避免后面的格子整体前移。
+      return typeof link.id === "string" ? { id: link.id } : {};
+    });
+    if (changed > 0) {
+      DB.put(db, key, { ...stored, links: next });
+      removed += changed;
+    }
+  }
+
+  return removed;
+};
+
 /** True when a share has already been added to any links widget. */
 export const hasSharedLink = (shareId: string): boolean =>
   linksWidgets().some(([, stored]) =>

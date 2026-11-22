@@ -5,6 +5,7 @@ import {
   addSharedLink,
   hasSharedLink,
   normalizeShareConfig,
+  removeSharedLink,
   removeShareIdentity,
   setAutoAccept,
   setShareServiceUrl,
@@ -51,8 +52,7 @@ const LinkShare: React.FC = () => {
   const [groupDraft, setGroupDraft] = React.useState({ name: "", password: "" });
 
   const [peers, setPeers] = React.useState<PublicIdentity[]>([]);
-  // 手动添加时是否采纳对方的名称 / 图标 / 代理，默认采纳。
-  const [acceptConfig, setAcceptConfig] = React.useState<Record<string, boolean>>({});
+
   const [incoming, setIncoming] = React.useState<Incoming[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
@@ -273,7 +273,7 @@ const LinkShare: React.FC = () => {
     void loadPeers();
   };
 
-  const add = (entry: Incoming, applyConfig: boolean) => {
+  const add = (entry: Incoming) => {
     setError(null);
     const { share, identity } = entry;
     if (hasSharedLink(share.id)) {
@@ -281,26 +281,21 @@ const LinkShare: React.FC = () => {
       return;
     }
 
-    const ok = addSharedLink(
-      share.payload,
-      {
-        shareId: share.id,
-        serviceUrl,
-        owner: share.owner,
-        recipients: share.recipients,
-        recipient: identity.fingerprint,
-        applyConfig,
-        updatedAt: share.updatedAt,
-      },
-      applyConfig,
-    );
-    setMessage(
-      ok
-        ? applyConfig
-          ? "已添加（含对方的名称/图标/代理）"
-          : "已添加（仅网址）"
-        : "未找到可写入的快速链接组件",
-    );
+    const ok = addSharedLink(share.payload, {
+      shareId: share.id,
+      serviceUrl,
+      owner: share.owner,
+      recipients: share.recipients,
+      recipient: identity.fingerprint,
+      updatedAt: share.updatedAt,
+    });
+    setMessage(ok ? "已添加到快速链接" : "未找到可写入的快速链接组件");
+  };
+
+  const remove = (entry: Incoming) => {
+    setError(null);
+    const count = removeSharedLink(entry.share.id);
+    setMessage(count > 0 ? "已从快速链接移除" : "快速链接中未找到该分享");
   };
 
   const toggleAutoUser = (fingerprint: string, on: boolean) => {
@@ -555,26 +550,26 @@ const LinkShare: React.FC = () => {
                 </small>
               </span>
               <span className="ShareAcceptActions">
-                <label className="ShareAcceptConfig">
-                  <input
-                    type="checkbox"
-                    checked={acceptConfig[entry.share.id] ?? true}
-                    onChange={(event) =>
-                      setAcceptConfig((current) => ({
-                        ...current,
-                        [entry.share.id]: event.target.checked,
-                      }))
-                    }
-                  />
-                  <span>应用对方配置</span>
-                </label>
-                <button
-                  type="button"
-                  className="button button--primary"
-                  onClick={() => add(entry, acceptConfig[entry.share.id] ?? true)}
-                >
-                  添加
-                </button>
+                {hasSharedLink(entry.share.id) ? (
+                  <>
+                    <small className="ShareAdded">已添加</small>
+                    <button
+                      type="button"
+                      className="button button--secondary"
+                      onClick={() => remove(entry)}
+                    >
+                      移除
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="button button--primary"
+                    onClick={() => add(entry)}
+                  >
+                    添加
+                  </button>
+                )}
               </span>
             </div>
           ))
