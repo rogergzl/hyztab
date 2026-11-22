@@ -69,15 +69,33 @@ export type AutoAccept = {
   groups: string[];
 };
 
+/** 暂停中的分享：内容从网格移出后暂存在这里，可随时放回。 */
+export type PausedShare = {
+  url: string;
+  name?: string;
+  shortName?: string;
+  icon?: string;
+  proxy?: { address?: string };
+  owner: string;
+  ownerName?: string;
+  ownerGroup?: string;
+  serviceUrl: string;
+  recipient: string;
+  pausedAt: number;
+};
+
 /** Page level sharing configuration. */
 export type LinkShareConfig = {
   serviceUrl: string;
   identities: ShareIdentity[];
   autoAccept: AutoAccept;
+  /** shareId → 暂存内容；暂停后网格里完全不出现，也不留空槽。 */
+  pausedShares: Record<string, PausedShare>;
 };
 
 export const emptyShareConfig = (): LinkShareConfig => ({
   serviceUrl: "",
   identities: [],
   autoAccept: { users: [], groups: [] },
+  pausedShares: {},
 });

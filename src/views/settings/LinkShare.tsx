@@ -4,8 +4,12 @@ import {
   addShareIdentity,
   addSharedLink,
   hasSharedLink,
+  discardPausedShare,
+  isSharePaused,
   normalizeShareConfig,
+  pauseSharedLink,
   removeSharedLink,
+  resumeSharedLink,
   removeShareIdentity,
   setAutoAccept,
   setShareServiceUrl,
@@ -294,8 +298,27 @@ const LinkShare: React.FC = () => {
 
   const remove = (entry: Incoming) => {
     setError(null);
+    const discarded = discardPausedShare(entry.share.id);
     const count = removeSharedLink(entry.share.id);
-    setMessage(count > 0 ? "已从快速链接移除" : "快速链接中未找到该分享");
+    setMessage(
+      discarded || count > 0
+        ? "已彻底移除（内容不再保留）"
+        : "快速链接中未找到该分享",
+    );
+  };
+
+  const togglePause = (entry: Incoming, paused: boolean) => {
+    setError(null);
+    const ok = paused
+      ? pauseSharedLink(entry.share.id)
+      : resumeSharedLink(entry.share.id);
+    setMessage(
+      ok
+        ? paused
+          ? "已暂停：从网格移出，内容已保留，可随时恢复"
+          : "已恢复到快速链接"
+        : "操作失败：未找到该分享",
+    );
   };
 
   const toggleAutoUser = (fingerprint: string, on: boolean) => {
@@ -550,12 +573,37 @@ const LinkShare: React.FC = () => {
                 </small>
               </span>
               <span className="ShareAcceptActions">
-                {hasSharedLink(entry.share.id) ? (
+                {isSharePaused(entry.share.id) ? (
+                  <>
+                    <small className="ShareAdded">已暂停</small>
+                    <button
+                      type="button"
+                      className="button button--secondary"
+                      onClick={() => togglePause(entry, false)}
+                    >
+                      恢复
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--danger"
+                      onClick={() => remove(entry)}
+                    >
+                      移除
+                    </button>
+                  </>
+                ) : hasSharedLink(entry.share.id) ? (
                   <>
                     <small className="ShareAdded">已添加</small>
                     <button
                       type="button"
                       className="button button--secondary"
+                      onClick={() => togglePause(entry, true)}
+                    >
+                      暂停
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--danger"
                       onClick={() => remove(entry)}
                     >
                       移除

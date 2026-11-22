@@ -4,6 +4,7 @@ import { DB } from "../lib";
 import {
   LinkShare,
   LinkShareConfig,
+  PausedShare,
   ReconcileReport,
   ShareIdentity,
   SharePayload,
@@ -76,6 +77,15 @@ export const normalizeShareConfig = (value: unknown): LinkShareConfig => {
   const strings = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
+  const pausedShares: Record<string, PausedShare> = {};
+  if (isRecord(raw.pausedShares)) {
+    for (const [shareId, value] of Object.entries(raw.pausedShares)) {
+      if (!isRecord(value) || typeof value.url !== "string") continue;
+      if (typeof value.owner !== "string") continue;
+      pausedShares[shareId] = value as unknown as PausedShare;
+    }
+  }
+
   return {
     serviceUrl:
       typeof raw.serviceUrl === "string" ? raw.serviceUrl.trim() : "",
@@ -84,6 +94,7 @@ export const normalizeShareConfig = (value: unknown): LinkShareConfig => {
       users: strings(rawAuto.users),
       groups: strings(rawAuto.groups),
     },
+    pausedShares,
   };
 };
 
@@ -267,6 +278,96 @@ export const addSharedLink = (
   DB.put(db, key, { ...stored, links });
   return true;
 };
+
+/**
+ * 暂停某个分享：把链接从网格里**整条移出**（不留空槽），内容暂存到配置。
+ *
+ * 与「移除」的区别：暂停保留内容，可随时恢复；移除是丢弃。
+ */
+export const pauseSharedLink = (shareId: string): boolean => {
+  for (const [key, stored] of linksWidgets()) {
+    const index = stored.links!.findIndex(
+      (link) => link.share?.shareId === shareId,
+    );
+    if (index < 0) continue;
+
+    const link = stored.links![index];
+    const share = link.share!;
+    const snapshot: PausedShare = {
+      url: String(link.url ?? ""),
+      ...(typeof link.name === "string" ? { name: link.name } : {}),
+      ...(typeof link.shortName === "string" ? { shortName: link.shortName } : {}),
+      ...(typeof link.icon === "string" ? { icon: link.icon } : {}),
+      ...(link.proxy && typeof link.proxy === "object"
+        ? { proxy: link.proxy as { address?: string } }
+        : {}),
+      owner: share.owner,
+      serviceUrl: share.serviceUrl,
+      recipient: share.recipient,
+      pausedAt: Date.now(),
+    };
+
+    const links = stored.links!.filter((_, i) => i !== index);
+    DB.put(db, key, { ...stored, links });
+
+    const config = selectShareConfig();
+    DB.put(db, "linkShare", {
+      ...config,
+      pausedShares: { ...config.pausedShares, [shareId]: snapshot },
+    });
+    return true;
+  }
+
+  return false;
+};
+
+/** 恢复暂停的分享：重新写回第一个空槽（没有空槽就追加）。 */
+export const resumeSharedLink = (shareId: string): boolean => {
+  const config = selectShareConfig();
+  const snapshot = config.pausedShares[shareId];
+  if (!snapshot) return false;
+
+  const restored = addSharedLink(
+    {
+      url: snapshot.url,
+      name: snapshot.name,
+      shortName: snapshot.shortName,
+      icon: snapshot.icon,
+      proxy: snapshot.proxy,
+      updatedAt: snapshot.pausedAt,
+    },
+    {
+      shareId,
+      serviceUrl: snapshot.serviceUrl,
+      owner: snapshot.owner,
+      recipients: [],
+      recipient: snapshot.recipient,
+      applyConfig: true,
+      updatedAt: snapshot.pausedAt,
+    },
+    true,
+  );
+  if (!restored) return false;
+
+  const { [shareId]: _removed, ...rest } = config.pausedShares;
+  void _removed;
+  DB.put(db, "linkShare", { ...config, pausedShares: rest });
+  return true;
+};
+
+/** 彻底丢弃暂停中的记录（不可恢复）。 */
+export const discardPausedShare = (shareId: string): boolean => {
+  const config = selectShareConfig();
+  if (!config.pausedShares[shareId]) return false;
+  const { [shareId]: _removed, ...rest } = config.pausedShares;
+  void _removed;
+  DB.put(db, "linkShare", { ...config, pausedShares: rest });
+  return true;
+};
+
+/** 该分享是否处于暂停状态。 */
+export const isSharePaused = (shareId: string): boolean =>
+  Boolean(selectShareConfig().pausedShares[shareId]);
 
 /** 把某个分享对应的链接从网格中移除（槽位保留为空格）。返回移除数量。 */
 export const removeSharedLink = (shareId: string): number => {

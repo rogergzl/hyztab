@@ -110,6 +110,7 @@ const initData: State = {
     serviceUrl: "",
     identities: [],
     autoAccept: { users: [], groups: [] },
+    pausedShares: {},
   },
   // Fresh installs open with the four widgets users actually keep, stacked as
   // clock → greeting → search → quick links. Existing profiles are never
