@@ -304,7 +304,6 @@ export const pauseSharedLink = (shareId: string): boolean => {
       owner: share.owner,
       serviceUrl: share.serviceUrl,
       recipient: share.recipient,
-      index,
       pausedAt: Date.now(),
     };
 
@@ -325,47 +324,11 @@ export const pauseSharedLink = (shareId: string): boolean => {
   return false;
 };
 
-/** 恢复暂停的分享：重新写回第一个空槽（没有空槽就追加）。 */
+/** 恢复暂停的分享：按普通的「添加」逻辑写回第一个空槽（没有就追加）。 */
 export const resumeSharedLink = (shareId: string): boolean => {
   const config = selectShareConfig();
   const snapshot = config.pausedShares[shareId];
   if (!snapshot) return false;
-
-  // 原槽位还空着就写回原位，保持布局；否则由 addSharedLink 找空槽。
-  const widgets = linksWidgets();
-  const preferred = widgets[0];
-  const keepIndex =
-    typeof snapshot.index === "number" &&
-    preferred &&
-    snapshot.index < preferred[1].links!.length &&
-    !hasUrl(preferred[1].links![snapshot.index]);
-
-  if (keepIndex && preferred) {
-    const [key, stored] = preferred;
-    const links = [...stored.links!];
-    links[snapshot.index!] = payloadToLink(links[snapshot.index!] ?? {}, {
-      url: snapshot.url,
-      name: snapshot.name,
-      shortName: snapshot.shortName,
-      icon: snapshot.icon,
-      proxy: snapshot.proxy,
-      updatedAt: snapshot.pausedAt,
-    }, {
-      shareId,
-      serviceUrl: snapshot.serviceUrl,
-      owner: snapshot.owner,
-      recipients: [],
-      recipient: snapshot.recipient,
-      applyConfig: true,
-      updatedAt: snapshot.pausedAt,
-    });
-    DB.put(db, key, { ...stored, links });
-
-    const { [shareId]: _done, ...rest } = config.pausedShares;
-    void _done;
-    DB.put(db, "linkShare", { ...config, pausedShares: rest });
-    return true;
-  }
 
   const restored = addSharedLink(
     {

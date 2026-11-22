@@ -81,8 +81,6 @@ export type PausedShare = {
   ownerGroup?: string;
   serviceUrl: string;
   recipient: string;
-  /** 暂停前所在的槽位索引，恢复时优先写回这里，保持布局不变。 */
-  index?: number;
   pausedAt: number;
 };
 
