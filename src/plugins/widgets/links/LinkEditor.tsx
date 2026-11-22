@@ -233,6 +233,12 @@ const LinkEditor: FC<Props> = ({
   const errorText = (e: unknown): string =>
     e instanceof Error ? e.message : "操作失败";
 
+  /** 本地密钥集合的稳定指纹，用于让接收者列表在密钥变化时刷新。 */
+  const localKey = shareConfig.identities
+    .map((identity) => identity.fingerprint)
+    .sort()
+    .join(",");
+
   // 按分组归拢，界面上同组排在一起，避免一长条看不出归属。
   const shareGroups = Array.from(
     shareUsers.reduce((acc, user) => {
@@ -248,10 +254,13 @@ const LinkEditor: FC<Props> = ({
     if (!shareEnabled || !shareServiceUrl || !owner) return;
 
     let active = true;
+    // 接收者列表要排除本机所有密钥，否则多密钥用户会看到「自己」。
+    const local = new Set(
+      shareConfig.identities.map((identity) => identity.fingerprint),
+    );
     listIdentities(shareServiceUrl, owner)
       .then((users) => {
-        if (active)
-          setShareUsers(users.filter((user) => user.fingerprint !== owner?.fingerprint));
+        if (active) setShareUsers(users.filter((user) => !local.has(user.fingerprint)));
       })
       .catch((e) => {
         if (active) setShareError(errorText(e));
@@ -259,9 +268,9 @@ const LinkEditor: FC<Props> = ({
     return () => {
       active = false;
     };
-    // The owner can change after identities load, so re-read the list then.
+    // owner 或本地密钥集合变化时都要重新拉取列表。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shareEnabled, shareServiceUrl, owner?.fingerprint]);
+  }, [shareEnabled, shareServiceUrl, owner?.fingerprint, localKey]);
 
   const publish = async () => {
     setShareError(null);

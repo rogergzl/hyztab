@@ -14,6 +14,7 @@ import { db } from "../../db/state";
 import { useValue } from "../../lib/db/react";
 import {
   deleteIdentity,
+  excludeLocalIdentities,
   generateIdentity,
   listIdentities,
   listIncoming,
@@ -296,11 +297,8 @@ const LinkShare: React.FC = () => {
     setAutoAccept({ groups: next });
   };
 
-  // 排除本机的密钥：服务端会把「自己」也返回，直接拿来渲染会出现
-  // 「没有任何可选用户，却列出了自己的分组」这种看不懂的状态。
-  const otherPeers = peers.filter((peer) =>
-    signingIdentities.every((self) => self.fingerprint !== peer.fingerprint),
-  );
+  // 排除本机所有已知密钥（可能有多把，含只有公钥的），规则见 lib/linkShare/peers。
+  const otherPeers = excludeLocalIdentities(peers, config.identities);
 
   const peerGroups = Array.from(
     new Set(
