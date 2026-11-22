@@ -329,8 +329,16 @@ const LinkEditor: FC<Props> = ({
   const unpublish = async () => {
     if (!draft.share) return;
     setShareError(null);
+    setShareMessage(null);
+
+    // 没有私钥（如导入的备份）或未配置服务时无法签名，但本地状态必须能解除，
+    // 否则这条链接会永远卡在「已分享」，连取消都点不动。
     if (!shareServiceUrl || !owner) {
-      setShareError("无法连接中转服务，不能取消服务器上的分享");
+      change({ share: undefined });
+      setShareEnabled(false);
+      setShareMessage(
+        "已在本地取消分享。当前密钥无法连接中转服务（缺少私钥或未连接），服务端记录可能仍在，可在管理面板撤销。",
+      );
       return;
     }
 
@@ -341,7 +349,12 @@ const LinkEditor: FC<Props> = ({
       setShareEnabled(false);
       setShareMessage("已取消分享");
     } catch (e) {
-      setShareError(errorText(e));
+      // 服务端失败也解除本地关联，并说明残留在哪里清理。
+      change({ share: undefined });
+      setShareEnabled(false);
+      setShareMessage(
+        `已在本地取消分享；服务端删除失败：${errorText(e)}。可在管理面板撤销该记录。`,
+      );
     } finally {
       setShareBusy(false);
     }
@@ -610,13 +623,19 @@ const LinkEditor: FC<Props> = ({
                         <div className="ShareRecipientsHead">
                           <span className="FieldLabel">接收用户</span>
                           <small>
-                            已选 {shareRecipients.length} / {shareUsers.length}
+                            已选{" "}
+                            {
+                              shareRecipients.filter((fp) =>
+                                shareUsers.some((user) => user.fingerprint === fp),
+                              ).length
+                            }{" "}
+                            / {shareUsers.length}
                           </small>
                         </div>
 
                         {shareUsers.length === 0 ? (
                           <small className="FieldHint">
-                            同组内还没有其他用户，或尚未连接中转服务。
+                            读取不到同组用户：可能需要私钥签名、未授予站点权限，或同组暂无他人。
                           </small>
                         ) : (
                           shareGroups.map(([group, users]) => {
